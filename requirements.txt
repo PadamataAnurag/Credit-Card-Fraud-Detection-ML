@@ -1,7 +1,12 @@
+# Core Streamlit Web Application
 streamlit
+
+# Machine Learning & Scientific Computing
+scikit-learn
 numpy
 pandas
+joblib
+
+# Data Visualization & Confusion Matrix Heatmaps
 matplotlib
 seaborn
-joblib
-scikit-learn
