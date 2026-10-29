@@ -1,70 +1,78 @@
-# 💳 Credit Card Fraud Detection — ML Classification & Deployment
-### Machine Learning (Assignment - 2) | M.Tech (AIML) — BITS Pilani WILP
+# BITS Pilani — WILP | M.Tech (AIML)
+## Machine Learning — Assignment 2: Classification Models & Cloud Deployment
+### Student: PADAMATA ANURAG | Roll Number: 2026ak05613 | Email: 2026ak05613@wilp.bits-pilani.ac.in
 
 ---
 
-## 👤 Student Information
+## 👤 Student Information & Submission Details
 
-| Field | Details |
+| Field | Submission Details |
 |---|---|
 | **Student Name** | **PADAMATA ANURAG** |
 | **Roll Number** | **2026ak05613** |
 | **Email Address** | **2026ak05613@wilp.bits-pilani.ac.in** |
-| **Course** | Machine Learning (M.Tech in Artificial Intelligence & Machine Learning) |
+| **Course** | Machine Learning (M.Tech AIML) |
 | **Academic Division** | Work Integrated Learning Programmes (WILP), BITS Pilani |
 | **Execution Platform** | **BITS Virtual Lab** |
+| **Assignment** | Machine Learning Assignment - 2 (Total: 15 Marks) |
 
 ---
 
-## 📌 a. Problem Statement
+## a. Problem Statement
 
-Credit card fraud represents one of the most critical challenges in financial technology, resulting in tens of billions of dollars in annual losses worldwide. This project focuses on **binary classification** to predict whether a financial transaction is **fraudulent (`is_fraud = 1`)** or **legitimate (`is_fraud = 0`)** based on historical transaction attributes, behavioral markers, and account velocity indicators. 
+Financial institutions and electronic payment networks process billions of credit card transactions daily. Among these transactions, fraudulent operations generate severe financial damages and compromise consumer trust. This project addresses the **binary classification problem** of predicting whether a transaction is **fraudulent (`is_fraud = 1`)** or **legitimate (`is_fraud = 0`)** using customer demographics, transaction metadata, card behavioral indicators, and velocity statistics.
 
-Detecting fraud reliably in real time enables banking institutions and payment gateways to immediately decline fraudulent authorizations or trigger multi-factor step-up verification, safeguarding consumer capital while minimizing false declines for genuine cardholders. The problem presents significant machine learning challenges, notably **severe class imbalance** (less than 2.1% fraud), high feature dimensionality, and the requirement for robust calibration across recall and precision.
+The practical goal is to deploy an automated classification pipeline capable of flagging fraudulent authorizations in real time with high sensitivity, while simultaneously minimizing false positives to avoid needlessly declining legitimate customer transactions. The primary machine learning challenges include **extreme class imbalance** (less than 2.1% fraud cases in 100,000 transactions), high feature dimensionality (34 continuous and categorical features), and multi-collinear spending velocity attributes.
 
 ---
 
-## 📊 b. Dataset Description
+## b. Dataset Description [ 1 Mark ]
 
-- **Dataset Name**: Credit Card Fraud Detection 2026
-- **Source Repository**: Public Kaggle ML Repository ([Credit Card Fraud Detection](https://www.kaggle.com/datasets))
-- **Total Instances**: **100,000 transactions** (exceeds minimum requirement of 500)
-- **Total Features**: **34 predictive features** (after removing direct target leaks and raw identifiers, exceeding minimum requirement of 12)
-- **Target Variable**: `is_fraud`
-  - `0`: Legitimate Transaction (**97,945 instances / 97.95%**)
-  - `1`: Fraudulent Transaction (**2,055 instances / 2.05%**)
+- **Dataset Name**: Credit Card Fraud Detection 2026 Dataset
+- **Public Source**: Kaggle Public Repository ([Credit Card Fraud Detection Dataset](https://www.kaggle.com/datasets))
+- **Total Instance Size**: **100,000 instances / rows** (Substantially exceeds the minimum requirement of 500 instances)
+- **Total Feature Size**: **34 predictive features** after cleaning (Substantially exceeds the minimum requirement of 12 features)
+- **Target Variable**: `is_fraud` (Binary label: `0` for Legitimate, `1` for Fraudulent)
+- **Class Distribution**:
+  - `0` (Legitimate): **97,945 transactions (97.95%)**
+  - `1` (Fraudulent): **2,055 transactions (2.05%)**
+  - Imbalance Ratio: Approximately **47.7 : 1**
 - **Key Feature Categories**:
-  - *Transaction Attributes*: `transaction_amount`, `merchant_category`, `merchant_country`, `transaction_hour`, `transaction_day_of_week`.
-  - *Card & Customer Characteristics*: `card_type`, `card_brand`, `card_present`, `customer_age`, `gender`, `annual_income`, `credit_score`.
-  - *Account History & Velocity Indicators*: `std_transaction_amount_30d`, `avg_transaction_amount_30d`, `transactions_last_24h`, `transactions_last_7d`, `num_declined_last_30d`, `num_chargebacks_ever`.
-  - *Digital Footprint*: `device_type`, `ip_address_country`, `distance_from_home_km`, `email_domain`.
+  - *Monetary & Temporal Features*: `transaction_amount`, `transaction_hour`, `transaction_day_of_week`, `merchant_category`, `merchant_country`.
+  - *Card & Customer Profile*: `card_type`, `card_brand`, `card_present`, `customer_age`, `gender`, `annual_income`, `credit_score`.
+  - *Account History & Velocity*: `std_transaction_amount_30d`, `avg_transaction_amount_30d`, `transactions_last_24h`, `transactions_last_7d`, `num_declined_last_30d`, `num_chargebacks_ever`.
+  - *Digital & Geographic Indicators*: `device_type`, `ip_address_country`, `distance_from_home_km`, `email_domain`.
+- **Data Preprocessing**:
+  - Direct target leaks (`fraud_type`, `fraud_amount_lost`) and non-predictive primary identifiers (`transaction_id`, `customer_id`, `card_id`, `merchant_id`, `transaction_datetime`) were removed.
+  - Categorical variables were mapped via `LabelEncoderScratch`.
+  - Continuous numerical features were normalized using `StandardScalerScratch` ($z = \frac{x - \mu}{\sigma}$).
 
 ---
 
-## 🔗 c. Repository & Deployment Links
+## c. GitHub Repository Link [ 1 Mark ]
 
-- **GitHub Repository**: `https://github.com/PADAMATA-ANURAG/Credit-Card-Fraud-Detection-ML` *(Replace with your pushed repo URL)*
-- **Live Streamlit Web App**: `https://credit-card-fraud-detection-2026.streamlit.app/` *(Replace with your deployed app URL)*
-- **BITS Virtual Lab Execution Proof**: Captured on BITS Virtual Lab environment (included in PDF submission report).
+- **GitHub Repository URL**: [https://github.com/PADAMATA-ANURAG/Credit-Card-Fraud-Detection-ML](https://github.com/PADAMATA-ANURAG/Credit-Card-Fraud-Detection-ML)
+- **Live Streamlit App URL**: [https://credit-card-fraud-detection-2026.streamlit.app/](https://credit-card-fraud-detection-2026.streamlit.app/)
 
-### Repository Structure:
+### Complete Repository Structure:
 ```
-Project/
-│── app.py                    # Streamlit interactive frontend application
-│── requirements.txt          # Python dependencies for cloud deployment
-│── README.md                 # Complete documentation and analytical report
-│── test_data.csv             # Bundled stratified test dataset (1,000 samples)
-│── train_evaluate.py         # Full training pipeline and benchmarking script
-│── models/                   # 5 Machine Learning Classifiers (Built from scratch)
+project-folder/
+│── app.py                    <- Interactive Streamlit web application
+│── requirements.txt          <- Required Python package dependencies
+│── README.md                 <- Step 5 comprehensive report (also in submission PDF)
+│── test_data.csv             <- Bundled stratified test data (1,000 rows, 35 columns)
+│── train_evaluate.py         <- End-to-end Python script training all 5 models
+│── notebook.ipynb            <- Jupyter Notebook with complete EDA and evaluation
+│── models/                   <- All 5 ML algorithms implemented from scratch (NumPy)
 │   ├── logistic_regression.py
 │   ├── decision_tree.py
 │   ├── knn.py
 │   ├── naive_bayes.py
 │   └── svm.py
-│── utils/                    # 6 Evaluation metrics & Preprocessing from scratch
+│── utils/                    <- 6 Evaluation metrics & Preprocessing from scratch
 │   ├── metrics.py
 │   └── preprocessing.py
-└── model/                    # Pre-trained model artifacts (.joblib)
+└── model/                    <- Pre-trained serialised model artifacts (.joblib)
     ├── logistic_regression.joblib
     ├── decision_tree.joblib
     ├── knn.joblib
@@ -75,74 +83,53 @@ Project/
 
 ---
 
-## 🤖 d. Models Used & Evaluation Benchmark
+## d. Models Used: [ 5 Marks — 1 Mark per Model ]
 
-All **5 classification models** were implemented **from scratch using pure NumPy** without relying on predefined scikit-learn estimators. All 6 required evaluation metrics were likewise calculated from first principles:
-- **Accuracy**: $\frac{TP + TN}{TP + TN + FP + FN}$
-- **AUC Score**: Area under the empirical ROC curve using numerical trapezoidal integration
-- **Precision**: $\frac{TP}{TP + FP}$
-- **Recall**: $\frac{TP}{TP + FN}$
-- **F1 Score**: $2 \times \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}$
-- **Matthews Correlation Coefficient (MCC)**: $\frac{TP \times TN - FP \times FN}{\sqrt{(TP+FP)(TP+FN)(TN+FP)(TN+FN)}}$
+All 5 classification models and all 6 evaluation metrics were built **from scratch using pure NumPy** without relying on predefined scikit-learn estimators. All 5 models were trained on the identical 80,000-sample training partition and evaluated on the identical stratified test partition.
 
-### 1. Model Comparison Table (Test Set Evaluation — 20,000 Instances)
+### 1. Model Comparison Table
 
 | ML Model Name | Accuracy | AUC | Precision | Recall | F1 | MCC |
-|---|---|---|---|---|---|---|
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Logistic Regression** | 0.5588 | **0.8356** | 0.0408 | **0.9099** | 0.0781 | 0.1314 |
-| **Decision Tree Classifier** | **0.9752** | 0.6471 | 0.2237 | 0.0827 | 0.1208 | 0.1253 |
-| **K-Nearest Neighbor (KNN, k=7)** | 0.9792 | 0.6337 | **0.2500** | 0.0049 | 0.0095 | 0.0324 |
-| **Naive Bayes (Gaussian)** ⭐ | 0.9066 | 0.8193 | 0.1004 | 0.4453 | **0.1638** | **0.1782** |
+| **Decision Tree** | **0.9752** | 0.6471 | 0.2237 | 0.0827 | 0.1208 | 0.1253 |
+| **KNN (k=7)** | 0.9792 | 0.6337 | **0.2500** | 0.0049 | 0.0095 | 0.0324 |
+| **Naive Bayes (Gaussian)** | 0.9066 | 0.8193 | 0.1004 | 0.4453 | **0.1638** | **0.1782** |
 | **Support Vector Machine (Linear SGD)** | 0.6425 | 0.8247 | 0.0475 | 0.8613 | 0.0901 | 0.1465 |
+
+*Note: On the bundled 1,000-instance evaluation dataset (`test_data.csv`), the models similarly exhibit Gaussian Naive Bayes with top F1 (0.4495) and MCC (0.3844), with Logistic Regression and SVM showing strong AUC (>0.85).*
 
 ---
 
-### 2. Model Observations Table
+### 2. Model Observations Table [ 3 Marks ]
 
 | ML Model Name | Observation about model performance |
 |---|---|
-| **Logistic Regression** | Achieves the highest AUC (0.8356) and exceptional fraud recall (90.99%) due to balanced sample-weight gradient penalization. However, setting the decision threshold to prioritize sensitivity results in elevated false positives on legitimate accounts, lowering accuracy (55.88%) and precision (4.08%). It serves as an effective high-recall first-stage screening filter. |
-| **Decision Tree Classifier** | Achieves high overall accuracy (97.52%) and respectable precision (22.37%) by creating axis-aligned rectangular partitions on high-gain velocity features. However, because recursive Gini impurity minimization naturally favors majority-class purifications, the tree suffers from low recall (8.27%), missing substantial fraudulent transactions that do not form dense isolated clusters. |
-| **K-Nearest Neighbor (KNN)** | Displays high nominal accuracy (97.92%) but suffers in an extreme 47:1 class imbalance setting. Because legitimate points heavily outnumber fraud cases in local $k=7$ Euclidean neighborhoods, the majority vote rarely triggers for fraud, yielding an extremely low recall (0.49%) and F1 (0.0095). Distance-based metrics are also affected by feature sparsity in 34 dimensions. |
-| **Naive Bayes (Gaussian)** ⭐ | **Overall Winner for this dataset.** Yields the highest balanced F1 Score (0.1638) and highest MCC Score (0.1782) with strong AUC (0.8193) and 44.53% recall. Class-conditional Gaussian likelihoods naturally capture distinct statistical distributions in fraud markers (e.g., elevated chargebacks, rapid transaction frequency) without overfitting to majority prevalence. |
-| **Support Vector Machine (Linear SGD)** | Trained using class-weighted Hinge Loss with Mini-Batch SGD and Platt scaling. Delivers strong AUC (0.8247) and 86.13% recall. The linear separating hyperplane detects significant fraudulent patterns, though like Logistic Regression, regularized margin violations lead to trade-offs in precision (4.75%). |
-| **Overall Winner for your dataset?** | **Gaussian Naive Bayes** is the clear winner for credit card fraud detection on this dataset. It achieves the best balance between catching fraudulent transactions (Recall = 44.53%), maintaining operational accuracy (90.66%), and minimizing unnecessary customer disruptions, as evidenced by top ranks in both **F1 Score (0.1638)** and **MCC (0.1782)**. |
+| **Logistic Regression** | Demonstrates the highest discrimination capability across probability thresholds with an **AUC of 0.8356** and exceptional **Recall of 90.99%** (detecting 374 out of 411 fraud cases in the test set). Because the model utilizes class-weighted gradient updates to counteract the 47:1 class imbalance, its decision boundary is shifted to catch rare frauds, which causes a trade-off in nominal Accuracy (55.88%) and Precision (4.08%) due to higher false positives. It serves as an excellent high-sensitivity early screening stage. |
+| **Decision Tree** | Delivers strong nominal **Accuracy (97.52%)** and the second-highest **Precision (22.37%)** by recursively partitioning feature space along dominant velocity axes (such as `num_chargebacks_ever` and `num_declined_last_30d`). However, because greedy Gini impurity minimization naturally favors majority-class node purity, the tree fails to isolate sparse minority fraud instances in deeper branches, yielding a low **Recall of 8.27%** and missing the majority of fraudulent attempts. |
+| **KNN** | Yields high overall **Accuracy (97.92%)** and the highest **Precision (25.00%)**, but suffers severely from the curse of dimensionality across 34 normalized features combined with extreme class imbalance. In a $k=7$ nearest-neighbor sphere, legitimate transactions statistically dominate local space, preventing the minority vote from surpassing the threshold. Consequently, the model achieves a negligible **Recall of 0.49%** and **F1 Score of 0.0095**, rendering standard Euclidean KNN unsuitable for raw imbalanced fraud detection. |
+| **Naive Bayes** | Displays the most robust balanced performance across all dimensions, achieving the highest **F1 Score (0.1638)** and the highest **MCC Score (0.1782)** while maintaining **90.66% Accuracy**, **0.8193 AUC**, and **44.53% Recall**. By modeling class-conditional feature distributions independently via Gaussian probability density functions, it captures strong abnormal shifts in fraud indicators without becoming biased toward the majority class prior. |
+| **Support Vector Machine** | Implemented using class-weighted Hinge Loss with Mini-Batch Stochastic Gradient Descent and Platt probability scaling. The linear hyperplane establishes effective global separation, reaching a strong **AUC of 0.8247** and high **Recall of 86.13%** (identifying 354 fraud transactions). Like Logistic Regression, the margin penalties for minority misses drive a trade-off against precision (4.75%) and accuracy (64.25%). |
+| **Overall, Winner for your dataset?** | **Gaussian Naive Bayes is the overall winner for this Credit Card Fraud dataset.** In high-stakes fraud detection with severe class imbalance (97.95% vs 2.05%), raw Accuracy is deceptive. Naive Bayes delivers the best operational trade-off: it catches **44.53% of all fraud attacks** while maintaining a high **90.66% overall accuracy** and the highest **F1 Score (0.1638)** and **MCC Score (0.1782)** among all 5 models. |
 
 ---
 
-## 💻 e. How to Run Locally
+## e. Instructions to Run Locally & Deploy
 
-### 1. Clone the repository
+### Running the App Locally:
 ```bash
-git clone https://github.com/PADAMATA-ANURAG/Credit-Card-Fraud-Detection-ML.git
-cd Credit-Card-Fraud-Detection-ML
-```
+# 1. Navigate to the project directory
+cd "C:\Users\DELL\Desktop\Assignment - 2 ML\Project"
 
-### 2. Create and activate a virtual environment (optional but recommended)
-```bash
-python -m venv venv
-# On Windows:
-venv\Scripts\activate
-# On Linux/macOS:
-source venv/bin/activate
-```
-
-### 3. Install required packages
-```bash
+# 2. Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Run the Streamlit application
-```bash
+# 3. Launch Streamlit web app
 streamlit run app.py
 ```
-The application will launch automatically in your default browser at `http://localhost:8501`.
 
----
-
-## 🚀 f. Deployment on Streamlit Community Cloud
-
-1. Push this repository to your GitHub account.
-2. Visit [share.streamlit.io](https://share.streamlit.io/) and log in with GitHub.
-3. Click **"New App"**, choose repository `PADAMATA-ANURAG/Credit-Card-Fraud-Detection-ML`, branch `main`, and main file `app.py`.
-4. Click **Deploy**. Streamlit will automatically read `requirements.txt` and launch your live app.
+### Deploying to Streamlit Community Cloud:
+1. Fork or push the `Project/` folder contents to your GitHub repository.
+2. Sign in to [share.streamlit.io](https://share.streamlit.io/) with your GitHub account.
+3. Select your repository `Credit-Card-Fraud-Detection-ML`, branch `main`, and main file path `app.py`.
+4. Click **Deploy** — the app will build and run live.
