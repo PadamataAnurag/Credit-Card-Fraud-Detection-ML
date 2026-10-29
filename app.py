@@ -1,0 +1,417 @@
+"""
+=============================================================================
+  BITS PILANI — WORK INTEGRATED LEARNING PROGRAMMES (WILP)
+  Course    : Machine Learning (M.Tech AIML)
+  Assignment: Assignment - 2
+  Student   : PADAMATA ANURAG
+  Roll No   : 2026ak05613
+  Email     : 2026ak05613@wilp.bits-pilani.ac.in
+  Platform  : BITS Virtual Lab / Streamlit Community Cloud
+=============================================================================
+"""
+
+import os
+import sys
+import numpy as np
+import pandas as pd
+import joblib
+import streamlit as st
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Ensure project root is in sys.path
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
+
+from models import (
+    LogisticRegressionScratch,
+    DecisionTreeScratch,
+    KNNScratch,
+    GaussianNaiveBayesScratch,
+    SVMScratch,
+)
+from utils import MetricsScratch, Preprocessor
+
+# ---------------------------------------------------------------------------
+# Page Configuration
+# ---------------------------------------------------------------------------
+st.set_page_config(
+    page_title="Credit Card Fraud Classifier | BITS Pilani",
+    page_icon="💳",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ---------------------------------------------------------------------------
+# Custom CSS Styling
+# ---------------------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+    .main-header {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #1E3A8A;
+        margin-bottom: 0.2rem;
+    }
+    .sub-header {
+        font-size: 1.05rem;
+        color: #4B5563;
+        margin-bottom: 1.5rem;
+    }
+    .student-badge {
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+        color: white;
+        padding: 0.8rem 1.2rem;
+        border-radius: 10px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .metric-card {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    .metric-title {
+        font-size: 0.85rem;
+        color: #64748B;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    .metric-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #0F172A;
+        margin-top: 0.2rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------------------------
+# Model Registry Mapping
+# ---------------------------------------------------------------------------
+MODEL_FILES = {
+    "Logistic Regression": "logistic_regression.joblib",
+    "Decision Tree": "decision_tree.joblib",
+    "K-Nearest Neighbor (KNN)": "knn.joblib",
+    "Naive Bayes (Gaussian)": "naive_bayes.joblib",
+    "Support Vector Machine (SVM)": "svm.joblib",
+}
+
+MODEL_DESCRIPTIONS = {
+    "Logistic Regression": "Sigmoid activation + Binary Cross-Entropy loss optimized via Batch Gradient Descent with class weights.",
+    "Decision Tree": "CART algorithm using Gini Impurity split criterion with recursive depth-bounded binary partitioning.",
+    "K-Nearest Neighbor (KNN)": "Vectorized Euclidean distance computing top-k majority vote with batched matrix algebra.",
+    "Naive Bayes (Gaussian)": "Probabilistic Bayesian classifier computing Gaussian class-conditional feature likelihoods.",
+    "Support Vector Machine (SVM)": "Linear SVM minimizing regularized Hinge Loss via Mini-Batch SGD with Platt scaling for probability estimates.",
+}
+
+
+# ---------------------------------------------------------------------------
+# Model & Preprocessor Loader (Cached)
+# ---------------------------------------------------------------------------
+@st.cache_resource
+def load_all_models():
+    """Load preprocessor and all 5 pre-trained scratch models from model/."""
+    model_dir = os.path.join(PROJECT_DIR, "model")
+    models = {}
+    for name, filename in MODEL_FILES.items():
+        path = os.path.join(model_dir, filename)
+        if os.path.exists(path):
+            models[name] = joblib.load(path)
+        else:
+            st.error(f"Missing model file: {path}")
+    preprocessor_path = os.path.join(model_dir, "preprocessor.joblib")
+    preprocessor = joblib.load(preprocessor_path) if os.path.exists(preprocessor_path) else None
+    return models, preprocessor
+
+
+models_dict, preprocessor = load_all_models()
+
+# ---------------------------------------------------------------------------
+# Sidebar
+# ---------------------------------------------------------------------------
+with st.sidebar:
+    st.image(
+        "https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/BITS_Pilani-Logo.svg/1200px-BITS_Pilani-Logo.svg.png",
+        width=120,
+    )
+    st.markdown("### 🎓 Academic Submission")
+    st.markdown(
+        """
+        **Student**: PADAMATA ANURAG  
+        **Roll No**: `2026ak05613`  
+        **Email**: [2026ak05613@wilp.bits-pilani.ac.in](mailto:2026ak05613@wilp.bits-pilani.ac.in)  
+        **Course**: Machine Learning  
+        **Programme**: M.Tech (AIML)  
+        **Division**: WILP, BITS Pilani  
+        **Environment**: BITS Virtual Lab  
+        """
+    )
+    st.divider()
+
+    st.markdown("### ⚙️ Model Selection")
+    selected_model_name = st.selectbox(
+        "Choose Classification Model:",
+        list(MODEL_FILES.keys()),
+        index=3,  # Default to Naive Bayes (Overall winner)
+    )
+
+    st.caption(f"ℹ️ **Mechanism**: {MODEL_DESCRIPTIONS[selected_model_name]}")
+    st.divider()
+
+    st.markdown("### 📊 Dataset Details")
+    st.markdown(
+        """
+        - **Dataset**: Credit Card Fraud 2026
+        - **Total Instances**: 100,000
+        - **Features**: 34 numerical features
+        - **Target**: `is_fraud` (0: Legitimate, 1: Fraud)
+        - **Evaluation Test Set**: 1,000 samples (Stratified)
+        """
+    )
+
+# ---------------------------------------------------------------------------
+# Main Content
+# ---------------------------------------------------------------------------
+st.markdown(
+    '<div class="main-header">💳 Credit Card Fraud Detection — ML Classifier Evaluator</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    """
+    <div class="student-badge">
+        <strong>PADAMATA ANURAG</strong> &nbsp;|&nbsp; Roll: <strong>2026ak05613</strong> &nbsp;|&nbsp; 
+        Email: <strong>2026ak05613@wilp.bits-pilani.ac.in</strong> &nbsp;|&nbsp; 
+        M.Tech (AIML) — BITS Pilani WILP (Assignment 2)
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------------------------
+# Step 6(a): Dataset Upload (CSV)
+# ---------------------------------------------------------------------------
+st.subheader("📂 1. Test Dataset Upload (CSV)")
+
+default_test_path = os.path.join(PROJECT_DIR, "test_data.csv")
+uploaded_file = st.file_uploader(
+    "Upload Test Data CSV (must include feature columns and 'is_fraud' target):",
+    type=["csv"],
+    help="Upload your test CSV. If no file is uploaded, the default pre-bundled stratified test dataset (1,000 instances) will be used.",
+)
+
+df_test = None
+is_custom_upload = False
+
+if uploaded_file is not None:
+    try:
+        df_test = pd.read_csv(uploaded_file)
+        is_custom_upload = True
+        st.success(f"✅ Successfully loaded uploaded CSV: `{uploaded_file.name}` ({df_test.shape[0]:,} rows, {df_test.shape[1]} columns)")
+    except Exception as e:
+        st.error(f"Error reading uploaded CSV: {e}")
+elif os.path.exists(default_test_path):
+    df_test = pd.read_csv(default_test_path)
+    st.info(f"📁 Using bundled default test dataset: `test_data.csv` ({df_test.shape[0]:,} rows, {df_test.shape[1]} columns). You can upload a custom CSV above.")
+else:
+    st.warning("⚠️ Default `test_data.csv` not found. Please upload a test CSV file.")
+
+if df_test is not None:
+    # Validate target column presence
+    target_col = "is_fraud"
+    if target_col not in df_test.columns:
+        st.error(f"❌ Error: Required target column '{target_col}' not found in the dataset! Available columns: {list(df_test.columns[:5])}...")
+    else:
+        # Preprocess / Extract X and y
+        with st.expander("🔍 Preview Test Data & Class Distribution", expanded=False):
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.dataframe(df_test.head(5), use_container_width=True)
+            with col2:
+                class_counts = df_test[target_col].value_counts().to_dict()
+                st.write("**Class Counts:**")
+                st.write(f"- Legitimate (0): `{class_counts.get(0, 0):,}`")
+                st.write(f"- Fraudulent (1): `{class_counts.get(1, 0):,}`")
+                fraud_rate = (class_counts.get(1, 0) / len(df_test)) * 100
+                st.write(f"- Fraud Rate: `{fraud_rate:.2f}%`")
+
+        # Feature separation
+        # If columns match preprocessor feature_cols_ directly and are numeric
+        if preprocessor is not None and any(col in df_test.columns for col in ["merchant_category", "card_brand", "browser", "transaction_type"]):
+            # Raw data uploaded, apply preprocessor transform
+            try:
+                X_eval, y_eval = preprocessor.transform(df_test)
+            except Exception:
+                X_eval = df_test.drop(columns=[target_col]).values
+                y_eval = df_test[target_col].values.astype(int)
+        else:
+            X_eval = df_test.drop(columns=[target_col]).values
+            y_eval = df_test[target_col].values.astype(int)
+
+        # -------------------------------------------------------------------
+        # Step 6(b) & (c): Model Evaluation & Display 6 Evaluation Metrics
+        # -------------------------------------------------------------------
+        st.markdown(f"### 🤖 2. Model Evaluation — **{selected_model_name}**")
+
+        active_model = models_dict[selected_model_name]
+
+        # Compute predictions and probabilities
+        with st.spinner(f"Computing predictions with {selected_model_name}..."):
+            y_pred = active_model.predict(X_eval)
+            y_proba = active_model.predict_proba(X_eval)[:, 1]
+            metrics = MetricsScratch.compute_all(y_eval, y_pred, y_proba)
+
+        # Display 6 Metric Cards
+        st.markdown("#### 📈 Step 2 Required Evaluation Metrics (Calculated From Scratch):")
+        m_col1, m_col2, m_col3, m_col4, m_col5, m_col6 = st.columns(6)
+
+        with m_col1:
+            st.markdown(
+                f'<div class="metric-card"><div class="metric-title">Accuracy</div><div class="metric-value">{metrics["Accuracy"]:.4f}</div></div>',
+                unsafe_allow_html=True,
+            )
+        with m_col2:
+            st.markdown(
+                f'<div class="metric-card"><div class="metric-title">AUC Score</div><div class="metric-value">{metrics["AUC"]:.4f}</div></div>',
+                unsafe_allow_html=True,
+            )
+        with m_col3:
+            st.markdown(
+                f'<div class="metric-card"><div class="metric-title">Precision</div><div class="metric-value">{metrics["Precision"]:.4f}</div></div>',
+                unsafe_allow_html=True,
+            )
+        with m_col4:
+            st.markdown(
+                f'<div class="metric-card"><div class="metric-title">Recall</div><div class="metric-value">{metrics["Recall"]:.4f}</div></div>',
+                unsafe_allow_html=True,
+            )
+        with m_col5:
+            st.markdown(
+                f'<div class="metric-card"><div class="metric-title">F1 Score</div><div class="metric-value">{metrics["F1"]:.4f}</div></div>',
+                unsafe_allow_html=True,
+            )
+        with m_col6:
+            st.markdown(
+                f'<div class="metric-card"><div class="metric-title">MCC Score</div><div class="metric-value">{metrics["MCC"]:.4f}</div></div>',
+                unsafe_allow_html=True,
+            )
+
+        st.caption("✨ Metrics are calculated strictly from mathematical first principles using pure NumPy (trapezoidal rule for AUC, harmonic mean for F1, Pearson phi for MCC).")
+
+        # -------------------------------------------------------------------
+        # Step 6(d): Confusion Matrix & Classification Breakdown
+        # -------------------------------------------------------------------
+        st.markdown("---")
+        st.markdown("### 🎯 3. Confusion Matrix & Diagnostic Visualizations")
+
+        TP, TN, FP, FN = MetricsScratch.confusion_matrix_components(y_eval, y_pred, positive_class=1)
+        cm = np.array([[TN, FP], [FN, TP]])
+
+        viz_col1, viz_col2 = st.columns(2)
+
+        with viz_col1:
+            st.markdown("##### 📌 Confusion Matrix")
+            fig, ax = plt.subplots(figsize=(5, 4))
+            sns.heatmap(
+                cm,
+                annot=True,
+                fmt="d",
+                cmap="Blues",
+                cbar=False,
+                xticklabels=["Pred: Legit (0)", "Pred: Fraud (1)"],
+                yticklabels=["Actual: Legit (0)", "Actual: Fraud (1)"],
+                ax=ax,
+                annot_kws={"size": 14, "weight": "bold"},
+            )
+            ax.set_ylabel("True Class", fontsize=11, fontweight="bold")
+            ax.set_xlabel("Predicted Class", fontsize=11, fontweight="bold")
+            ax.set_title(f"Confusion Matrix — {selected_model_name}", fontsize=12, pad=10)
+            plt.tight_layout()
+            st.pyplot(fig)
+
+            st.markdown(
+                f"""
+                - **True Negatives (TN)**: `{TN:,}` &nbsp;|&nbsp; **False Positives (FP)**: `{FP:,}`
+                - **False Negatives (FN)**: `{FN:,}` &nbsp;|&nbsp; **True Positives (TP)**: `{TP:,}`
+                """
+            )
+
+        with viz_col2:
+            st.markdown("##### 📉 ROC Curve (Receiver Operating Characteristic)")
+            fpr, tpr = MetricsScratch.roc_curve(y_eval, y_proba)
+            fig_roc, ax_roc = plt.subplots(figsize=(5, 4))
+            ax_roc.plot(fpr, tpr, color="#2563EB", lw=2.5, label=f"ROC Curve (AUC = {metrics['AUC']:.4f})")
+            ax_roc.plot([0, 1], [0, 1], color="#94A3B8", lw=1.5, linestyle="--", label="Random Classifier")
+            ax_roc.set_xlim([0.0, 1.0])
+            ax_roc.set_ylim([0.0, 1.05])
+            ax_roc.set_xlabel("False Positive Rate (1 - Specificity)", fontsize=10)
+            ax_roc.set_ylabel("True Positive Rate (Sensitivity / Recall)", fontsize=10)
+            ax_roc.set_title("ROC Curve Analysis", fontsize=12, pad=10)
+            ax_roc.legend(loc="lower right", fontsize=9)
+            ax_roc.grid(True, linestyle=":", alpha=0.6)
+            plt.tight_layout()
+            st.pyplot(fig_roc)
+
+        # -------------------------------------------------------------------
+        # Step 5: Comparative Model Analysis
+        # -------------------------------------------------------------------
+        st.markdown("---")
+        st.markdown("### 🏆 4. Comprehensive All-Model Comparison")
+        st.markdown("Compare the performance across all **5 classification models** simultaneously on the current test data:")
+
+        if st.button("🚀 Run Comparative Benchmark on All 5 Models"):
+            comparison_rows = []
+            progress_bar = st.progress(0)
+            for idx, (m_name, m_inst) in enumerate(models_dict.items()):
+                p = m_inst.predict(X_eval)
+                pb = m_inst.predict_proba(X_eval)[:, 1]
+                m_scores = MetricsScratch.compute_all(y_eval, p, pb)
+                comparison_rows.append({
+                    "Model": m_name,
+                    "Accuracy": m_scores["Accuracy"],
+                    "AUC": m_scores["AUC"],
+                    "Precision": m_scores["Precision"],
+                    "Recall": m_scores["Recall"],
+                    "F1 Score": m_scores["F1"],
+                    "MCC Score": m_scores["MCC"],
+                })
+                progress_bar.progress((idx + 1) / len(models_dict))
+
+            comp_df = pd.DataFrame(comparison_rows)
+            st.dataframe(
+                comp_df.style.highlight_max(subset=["AUC", "F1 Score", "MCC Score"], color="#BBF7D0")
+                .highlight_max(subset=["Accuracy", "Precision", "Recall"], color="#E0E7FF")
+                .format({
+                    "Accuracy": "{:.4f}",
+                    "AUC": "{:.4f}",
+                    "Precision": "{:.4f}",
+                    "Recall": "{:.4f}",
+                    "F1 Score": "{:.4f}",
+                    "MCC Score": "{:.4f}",
+                }),
+                use_container_width=True,
+            )
+            st.info("💡 Highlighted cells indicate the highest metric score among the 5 models. **Naive Bayes** and **SVM** demonstrate strong AUC and balanced fraud recall under class imbalance.")
+
+# ---------------------------------------------------------------------------
+# Footer
+# ---------------------------------------------------------------------------
+st.markdown("---")
+st.markdown(
+    """
+    <div style="text-align: center; color: #64748B; font-size: 0.85rem;">
+        <strong>BITS Pilani — Work Integrated Learning Programmes (WILP)</strong><br>
+        Machine Learning Assignment - 2 | Student: <strong>PADAMATA ANURAG</strong> (Roll: <strong>2026ak05613</strong>)<br>
+        Email: <code>2026ak05613@wilp.bits-pilani.ac.in</code> | Verified on BITS Virtual Lab
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
