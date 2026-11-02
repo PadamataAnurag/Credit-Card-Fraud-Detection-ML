@@ -31,10 +31,16 @@ import joblib
 
 # ── Project path setup ──────────────────────────────────────────────────────
 PROJECT_DIR  = os.path.dirname(os.path.abspath(__file__))
-DATASET_PATH = os.path.join(PROJECT_DIR, "..", "Dataset",
-                            "credit_card_fraud_detection_2026.csv")
-SAVED_DIR    = os.path.join(PROJECT_DIR, "saved_models")
+candidate_data_paths = [
+    os.path.join(PROJECT_DIR, "..", "Dataset", "credit_card_fraud_detection_2026.csv"),
+    os.path.join(PROJECT_DIR, "data", "credit_card_fraud_detection_2026.csv"),
+    os.path.join(PROJECT_DIR, "credit_card_fraud_detection_2026.csv"),
+    os.path.join(PROJECT_DIR, "test_data.csv"),
+]
+DATASET_PATH = next((p for p in candidate_data_paths if os.path.exists(p)), candidate_data_paths[0])
+SAVED_DIR    = os.path.join(PROJECT_DIR, "model")
 os.makedirs(SAVED_DIR, exist_ok=True)
+os.makedirs(os.path.join(PROJECT_DIR, "saved_models"), exist_ok=True)
 
 sys.path.insert(0, PROJECT_DIR)
 
@@ -108,10 +114,11 @@ def evaluate_model(name, model, X_test, y_test):
 
 
 def save_model(model, name):
-    """Save trained model to saved_models/ using joblib."""
-    path = os.path.join(SAVED_DIR, f"{name}.joblib")
-    joblib.dump(model, path)
-    print(f"  [SAVED] -> {path}")
+    """Save trained model to model/ and saved_models/ using joblib."""
+    for d in [SAVED_DIR, os.path.join(PROJECT_DIR, "saved_models")]:
+        path = os.path.join(d, f"{name}.joblib")
+        joblib.dump(model, path)
+    print(f"  [SAVED] -> {os.path.join(SAVED_DIR, name + '.joblib')}")
 
 
 # ============================================================================
@@ -146,7 +153,7 @@ def main():
     test_df           = pd.DataFrame(X_test,
                                      columns=preprocessor.feature_cols_)
     test_df["is_fraud"] = y_test
-    test_csv_path     = os.path.join(PROJECT_DIR, "..", "test_data.csv")
+    test_csv_path     = os.path.join(PROJECT_DIR, "test_data.csv")
     test_df.to_csv(test_csv_path, index=False)
     print(f"  Test data saved -> {test_csv_path}")
 
