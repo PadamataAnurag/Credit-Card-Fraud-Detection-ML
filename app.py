@@ -243,13 +243,19 @@ if df_test is not None:
                 fraud_rate = (class_counts.get(1, 0) / len(df_test)) * 100
                 st.write(f"- Fraud Rate: `{fraud_rate:.2f}%`")
 
-        # Feature separation
-        # If columns match preprocessor feature_cols_ directly and are numeric
-        if preprocessor is not None and any(col in df_test.columns for col in ["merchant_category", "card_brand", "browser", "transaction_type"]):
-            # Raw data uploaded, apply preprocessor transform
+        # Feature separation & smart raw vs preprocessed detection
+        is_raw_data = False
+        if preprocessor is not None:
+            has_str_cols = df_test.select_dtypes(include=['object', 'string', 'category']).shape[1] > 0
+            has_id_cols = any(col in df_test.columns for col in getattr(preprocessor, 'ID_COLS', []) + getattr(preprocessor, 'LEAK_COLS', []))
+            if has_str_cols or has_id_cols:
+                is_raw_data = True
+
+        if is_raw_data:
             try:
                 X_eval, y_eval = preprocessor.transform(df_test)
-            except Exception:
+            except Exception as ex:
+                st.warning(f"Note: Raw transform encountered an issue ({ex}). Attempting direct numerical extraction...")
                 X_eval = df_test.drop(columns=[target_col]).values
                 y_eval = df_test[target_col].values.astype(int)
         else:
@@ -360,46 +366,82 @@ if df_test is not None:
             plt.tight_layout()
             st.pyplot(fig_roc)
 
+        # Step 6(d): Detailed Classification Report
+        with st.expander("📋 View Detailed Classification Report", expanded=True):
+            p0 = TN / (TN + FN) if (TN + FN) > 0 else 0.0
+            r0 = TN / (TN + FP) if (TN + FP) > 0 else 0.0
+            f1_0 = 2 * p0 * r0 / (p0 + r0) if (p0 + r0) > 0 else 0.0
+            supp0 = TN + FP
+
+            p1 = metrics["Precision"]
+            r1 = metrics["Recall"]
+            f1_1 = metrics["F1"]
+            supp1 = TP + FN
+
+            total_supp = supp0 + supp1
+            macro_p = (p0 + p1) / 2
+            macro_r = (r0 + r1) / 2
+            macro_f1 = (f1_0 + f1_1) / 2
+
+            weighted_p = (p0 * supp0 + p1 * supp1) / total_supp if total_supp > 0 else 0.0
+            weighted_r = (r0 * supp0 + r1 * supp1) / total_supp if total_supp > 0 else 0.0
+            weighted_f1 = (f1_0 * supp0 + f1_1 * supp1) / total_supp if total_supp > 0 else 0.0
+
+            cr_df = pd.DataFrame([
+                {"Category": "Class 0 (Legitimate)", "Precision": p0, "Recall": r0, "F1-Score": f1_0, "Support": supp0},
+                {"Category": "Class 1 (Fraudulent)", "Precision": p1, "Recall": r1, "F1-Score": f1_1, "Support": supp1},
+                {"Category": "Accuracy", "Precision": np.nan, "Recall": np.nan, "F1-Score": metrics["Accuracy"], "Support": total_supp},
+                {"Category": "Macro Average", "Precision": macro_p, "Recall": macro_r, "F1-Score": macro_f1, "Support": total_supp},
+                {"Category": "Weighted Average", "Precision": weighted_p, "Recall": weighted_r, "F1-Score": weighted_f1, "Support": total_supp},
+            ])
+
+            st.dataframe(
+                cr_df.style.format({
+                    "Precision": lambda v: f"{v:.4f}" if pd.notnull(v) else "",
+                    "Recall": lambda v: f"{v:.4f}" if pd.notnull(v) else "",
+                    "F1-Score": lambda v: f"{v:.4f}" if pd.notnull(v) else "",
+                    "Support": "{:,}",
+                }),
+                use_container_width=True,
+            )
+
         # -------------------------------------------------------------------
         # Step 5: Comparative Model Analysis
         # -------------------------------------------------------------------
         st.markdown("---")
         st.markdown("### 🏆 4. Comprehensive All-Model Comparison")
-        st.markdown("Compare the performance across all **5 classification models** simultaneously on the current test data:")
+        st.markdown("Benchmark performance across all **5 classification models** simultaneously on the current test data:")
 
-        if st.button("🚀 Run Comparative Benchmark on All 5 Models"):
-            comparison_rows = []
-            progress_bar = st.progress(0)
-            for idx, (m_name, m_inst) in enumerate(models_dict.items()):
-                p = m_inst.predict(X_eval)
-                pb = m_inst.predict_proba(X_eval)[:, 1]
-                m_scores = MetricsScratch.compute_all(y_eval, p, pb)
-                comparison_rows.append({
-                    "Model": m_name,
-                    "Accuracy": m_scores["Accuracy"],
-                    "AUC": m_scores["AUC"],
-                    "Precision": m_scores["Precision"],
-                    "Recall": m_scores["Recall"],
-                    "F1 Score": m_scores["F1"],
-                    "MCC Score": m_scores["MCC"],
-                })
-                progress_bar.progress((idx + 1) / len(models_dict))
+        comparison_rows = []
+        for idx, (m_name, m_inst) in enumerate(models_dict.items()):
+            p = m_inst.predict(X_eval)
+            pb = m_inst.predict_proba(X_eval)[:, 1]
+            m_scores = MetricsScratch.compute_all(y_eval, p, pb)
+            comparison_rows.append({
+                "Model": m_name,
+                "Accuracy": m_scores["Accuracy"],
+                "AUC": m_scores["AUC"],
+                "Precision": m_scores["Precision"],
+                "Recall": m_scores["Recall"],
+                "F1 Score": m_scores["F1"],
+                "MCC Score": m_scores["MCC"],
+            })
 
-            comp_df = pd.DataFrame(comparison_rows)
-            st.dataframe(
-                comp_df.style.highlight_max(subset=["AUC", "F1 Score", "MCC Score"], color="#BBF7D0")
-                .highlight_max(subset=["Accuracy", "Precision", "Recall"], color="#E0E7FF")
-                .format({
-                    "Accuracy": "{:.4f}",
-                    "AUC": "{:.4f}",
-                    "Precision": "{:.4f}",
-                    "Recall": "{:.4f}",
-                    "F1 Score": "{:.4f}",
-                    "MCC Score": "{:.4f}",
-                }),
-                use_container_width=True,
-            )
-            st.info("💡 Highlighted cells indicate the highest metric score among the 5 models. **Naive Bayes** and **SVM** demonstrate strong AUC and balanced fraud recall under class imbalance.")
+        comp_df = pd.DataFrame(comparison_rows)
+        st.dataframe(
+            comp_df.style.highlight_max(subset=["AUC", "F1 Score", "MCC Score"], color="#BBF7D0")
+            .highlight_max(subset=["Accuracy", "Precision", "Recall"], color="#E0E7FF")
+            .format({
+                "Accuracy": "{:.4f}",
+                "AUC": "{:.4f}",
+                "Precision": "{:.4f}",
+                "Recall": "{:.4f}",
+                "F1 Score": "{:.4f}",
+                "MCC Score": "{:.4f}",
+            }),
+            use_container_width=True,
+        )
+        st.info("💡 Highlighted cells indicate the highest metric score among the 5 models. **Naive Bayes** and **SVM** demonstrate strong AUC and balanced fraud recall under class imbalance.")
 
 # ---------------------------------------------------------------------------
 # Footer
