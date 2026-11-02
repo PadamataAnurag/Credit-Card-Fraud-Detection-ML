@@ -225,11 +225,18 @@ else:
     st.warning("⚠️ Default `test_data.csv` not found. Please upload a test CSV file.")
 
 if df_test is not None:
-    # Validate target column presence
-    target_col = "is_fraud"
-    if target_col not in df_test.columns:
-        st.error(f"❌ Error: Required target column '{target_col}' not found in the dataset! Available columns: {list(df_test.columns[:5])}...")
-    else:
+    # Auto-detect target column
+    target_col = None
+    for candidate in ["is_fraud", "fraud", "target", "class", "Class", "label"]:
+        if candidate in df_test.columns:
+            target_col = candidate
+            break
+
+    if target_col is None:
+        st.warning("⚠️ Target column 'is_fraud' was not automatically detected.")
+        target_col = st.selectbox("Please select the target column from your uploaded file:", list(df_test.columns))
+
+    if target_col:
         # Preprocess / Extract X and y
         with st.expander("🔍 Preview Test Data & Class Distribution", expanded=False):
             col1, col2 = st.columns([3, 1])
@@ -256,11 +263,28 @@ if df_test is not None:
                 X_eval, y_eval = preprocessor.transform(df_test)
             except Exception as ex:
                 st.warning(f"Note: Raw transform encountered an issue ({ex}). Attempting direct numerical extraction...")
-                X_eval = df_test.drop(columns=[target_col]).values
-                y_eval = df_test[target_col].values.astype(int)
+                X_df = df_test.drop(columns=[target_col]).select_dtypes(include=[np.number])
+                X_eval = X_df.values.astype(float)
+                y_eval = pd.to_numeric(df_test[target_col], errors='coerce').fillna(0).astype(int).values
         else:
-            X_eval = df_test.drop(columns=[target_col]).values
-            y_eval = df_test[target_col].values.astype(int)
+            # Check if preprocessor feature columns exist and align them
+            feature_cols = getattr(preprocessor, 'feature_cols_', None) if preprocessor is not None else None
+            if feature_cols and all(col in df_test.columns for col in feature_cols):
+                X_df = df_test[feature_cols].copy()
+            else:
+                drop_candidates = [target_col, "Unnamed: 0", "index", "id", "ID"]
+                existing_drops = [c for c in drop_candidates if c in df_test.columns]
+                X_df = df_test.drop(columns=existing_drops).select_dtypes(include=[np.number]).copy()
+
+            X_eval = X_df.values.astype(float)
+            y_eval = pd.to_numeric(df_test[target_col], errors='coerce').fillna(0).astype(int).values
+
+        # Ensure no NaNs exist in X_eval
+        if np.isnan(X_eval).any():
+            col_means = np.nanmean(X_eval, axis=0)
+            col_means = np.nan_to_num(col_means, nan=0.0)
+            nan_mask = np.isnan(X_eval)
+            X_eval[nan_mask] = np.take(col_means, np.where(nan_mask)[1])
 
         # -------------------------------------------------------------------
         # Step 6(b) & (c): Model Evaluation & Display 6 Evaluation Metrics
