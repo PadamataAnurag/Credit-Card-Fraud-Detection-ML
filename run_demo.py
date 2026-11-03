@@ -70,7 +70,11 @@ def main():
 
         t0 = time.time()
         preds = m.predict(X_test)
-        probs = m.predict_proba(X_test)[:, 1]
+        if hasattr(m, 'classes_') and m.classes_ is not None and 1 in m.classes_:
+            pos_idx = int(np.where(m.classes_ == 1)[0][0])
+        else:
+            pos_idx = 1
+        probs = m.predict_proba(X_test)[:, pos_idx]
         elapsed = (time.time() - t0) * 1000
 
         scores = MetricsScratch.compute_all(y_test, preds, probs)
