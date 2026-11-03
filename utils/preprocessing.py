@@ -32,6 +32,9 @@ class StandardScalerScratch:
             raise ValueError(f"X must be a 2D array, got shape {X.shape}")
         if len(X) == 0:
             raise ValueError("Cannot fit scaler on empty array.")
+        if np.isinf(X).any():
+            raise ValueError("StandardScalerScratch.fit() received infinite values (inf or -inf).")
+
         self.mean_ = np.nanmean(X, axis=0) if np.isnan(X).any() else np.mean(X, axis=0)
         self.std_  = np.nanstd(X, axis=0) if np.isnan(X).any() else np.std(X, axis=0)
         # Prevent division by zero for constant features
@@ -46,6 +49,8 @@ class StandardScalerScratch:
             raise ValueError(f"X must be a 2D array, got shape {X.shape}")
         if X.shape[1] != len(self.mean_):
             raise ValueError(f"Expected {len(self.mean_)} features, got {X.shape[1]}")
+        if np.isinf(X).any():
+            raise ValueError("StandardScalerScratch.transform() received infinite values (inf or -inf).")
         return (X - self.mean_) / self.std_
 
     def fit_transform(self, X):
@@ -104,9 +109,10 @@ class Preprocessor:
     2. Drop browser column (>41% missing values)
     3. Explicit categorical missing value imputation (mode) and Label Encoding
     4. Separate features (X) and target (y = is_fraud)
-    5. Check for valid training columns (reject all-NaN columns)
-    6. Impute numeric NaNs with column mean
-    7. Scale X with StandardScalerScratch (fit on train, transform on test)
+    5. Validate binary target labels
+    6. Check for valid training columns (reject all-NaN columns and infs)
+    7. Impute numeric NaNs with column mean
+    8. Scale X with StandardScalerScratch (fit on train, transform on test)
     """
 
     # Columns that directly leak target information
@@ -177,6 +183,14 @@ class Preprocessor:
         if self.TARGET_COL not in df.columns:
             raise ValueError(f"Target column '{self.TARGET_COL}' not found in training DataFrame.")
 
+        # Explicit target validation
+        raw_target = df[self.TARGET_COL].values
+        if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in raw_target):
+            raise ValueError("Target column contains missing or invalid values.")
+        target_classes = np.unique(raw_target)
+        if len(target_classes) != 2:
+            raise ValueError(f"Target column must contain exactly 2 classes for binary classification, got {len(target_classes)}: {target_classes}")
+
         df = df.copy()
         df = self._drop_columns(df)
         df = self._encode_categoricals(df, fit=True)
@@ -189,7 +203,11 @@ class Preprocessor:
 
         X = X_df.values.astype(float)
 
-        # Issue B check: Reject training data if any column has no valid values
+        # Reject infinite values
+        if np.isinf(X).any():
+            raise ValueError("Training feature matrix contains infinite values (inf or -inf).")
+
+        # Check for entirely missing training columns
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             col_means = np.nanmean(X, axis=0)
@@ -209,31 +227,41 @@ class Preprocessor:
         Pipeline applied to TEST / NEW data (uses fitted encoders & scaler).
         Returns: X_scaled (np.ndarray), y (np.ndarray) or None if no target
         """
-        # Issue E check: Fitted guard
         if not self.feature_cols_ or self.scaler_ is None or getattr(self.scaler_, 'mean_', None) is None:
             raise ValueError("Preprocessor must be fitted before transform.")
-        if len(df) == 0:
-            return np.empty((0, len(self.feature_cols_))), (np.empty((0,), dtype=int) if self.TARGET_COL in df.columns else None)
 
         df = df.copy()
         df = self._drop_columns(df)
         df = self._encode_categoricals(df, fit=False)
 
         has_target = self.TARGET_COL in df.columns
-        y = df[self.TARGET_COL].values.astype(int) if has_target else None
-
         if has_target:
+            raw_target = df[self.TARGET_COL].values
+            if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in raw_target):
+                raise ValueError("Test target column contains missing or invalid values.")
+            test_target_classes = np.unique(raw_target)
+            if len(test_target_classes) > 2:
+                raise ValueError(f"Test target column contains more than 2 distinct classes: {test_target_classes}")
+            y = df[self.TARGET_COL].values.astype(int)
             X_df = df.drop(columns=[self.TARGET_COL])
         else:
+            y = None
             X_df = df
 
-        # Issue A correction: Impute missing training columns with the training mean
+        # Align columns to training set; impute missing training features with the training mean
         for i, col in enumerate(self.feature_cols_):
             if col not in X_df.columns:
                 X_df[col] = self.scaler_.mean_[i]
         X_df = X_df[self.feature_cols_]
 
+        if len(X_df) == 0:
+            return np.empty((0, len(self.feature_cols_))), (np.empty((0,), dtype=int) if has_target else None)
+
         X = X_df.values.astype(float)
+
+        # Reject infinite values in inference data
+        if np.isinf(X).any():
+            raise ValueError("Inference feature matrix contains infinite values (inf or -inf).")
 
         # Impute NaNs using fitted training scaler means
         col_means = self.scaler_.mean_

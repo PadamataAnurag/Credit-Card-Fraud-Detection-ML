@@ -25,23 +25,41 @@ class MetricsScratch:
     """
 
     @staticmethod
-    def _validate_binary_inputs(y_true, y_pred=None, y_scores=None):
+    def _validate_binary_inputs(y_true, y_pred=None, y_scores=None, positive_class=1):
         """
-        Validate input dimensions, lengths, non-emptiness, and finite values.
+        Validate input dimensions, lengths, non-emptiness, label validity, and finite values.
+        Guarantees that input is appropriate for binary classification evaluation.
         """
         y_true = np.asarray(y_true)
         if y_true.ndim != 1 or len(y_true) == 0:
             raise ValueError("y_true must be a non-empty 1D array.")
+
+        # Validate y_true does not contain missing or null entries
+        if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in y_true):
+            raise ValueError("y_true contains missing or invalid label values.")
+
+        # Validate binary class count in y_true
+        true_classes = np.unique(y_true)
+        if len(true_classes) > 2:
+            raise ValueError(f"Binary metrics require at most 2 distinct classes in y_true, got {len(true_classes)}: {true_classes}")
+
         if y_pred is not None:
             y_pred = np.asarray(y_pred)
             if y_pred.ndim != 1 or len(y_pred) != len(y_true):
-                raise ValueError("y_pred must be 1D and match y_true length.")
+                raise ValueError(f"y_pred must be 1D and match y_true length (expected {len(y_true)}, got {len(y_pred)}).")
+            if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in y_pred):
+                raise ValueError("y_pred contains missing or invalid label values.")
+            pred_classes = np.unique(y_pred)
+            if len(pred_classes) > 2:
+                raise ValueError(f"Binary metrics require at most 2 distinct classes in y_pred, got {len(pred_classes)}: {pred_classes}")
+
         if y_scores is not None:
-            y_scores = np.asarray(y_scores)
+            y_scores = np.asarray(y_scores, dtype=float)
             if y_scores.ndim != 1 or len(y_scores) != len(y_true):
-                raise ValueError("y_scores must be 1D and match y_true length.")
+                raise ValueError(f"y_scores must be 1D and match y_true length (expected {len(y_true)}, got {len(y_scores)}).")
             if not np.all(np.isfinite(y_scores)):
                 raise ValueError("y_scores contains NaN or non-finite values.")
+
         return y_true, y_pred, y_scores
 
     # ------------------------------------------------------------------
@@ -58,7 +76,9 @@ class MetricsScratch:
         FP = predicted positive AND actually negative  (Type I error)
         FN = predicted negative AND actually positive  (Type II error)
         """
-        y_true, y_pred, _ = MetricsScratch._validate_binary_inputs(y_true, y_pred=y_pred)
+        y_true, y_pred, _ = MetricsScratch._validate_binary_inputs(
+            y_true, y_pred=y_pred, positive_class=positive_class
+        )
 
         TP = int(np.sum((y_pred == positive_class) & (y_true == positive_class)))
         TN = int(np.sum((y_pred != positive_class) & (y_true != positive_class)))
@@ -68,7 +88,7 @@ class MetricsScratch:
         return TP, TN, FP, FN
 
     @staticmethod
-    def confusion_matrix(y_true, y_pred):
+    def confusion_matrix(y_true, y_pred, positive_class=1):
         """
         Returns 2×2 confusion matrix for binary classification:
             [[TN, FP],
@@ -77,9 +97,17 @@ class MetricsScratch:
         Layout:
             Row 0 (Actual Negative): [TN, FP]
             Row 1 (Actual Positive): [FN, TP]
+
+        Parameters
+        ----------
+        positive_class : label of the positive class (default 1)
         """
-        y_true, y_pred, _ = MetricsScratch._validate_binary_inputs(y_true, y_pred=y_pred)
-        TP, TN, FP, FN = MetricsScratch.confusion_matrix_components(y_true, y_pred, positive_class=1)
+        y_true, y_pred, _ = MetricsScratch._validate_binary_inputs(
+            y_true, y_pred=y_pred, positive_class=positive_class
+        )
+        TP, TN, FP, FN = MetricsScratch.confusion_matrix_components(
+            y_true, y_pred, positive_class=positive_class
+        )
         return np.array([[TN, FP], [FN, TP]], dtype=int)
 
     # ------------------------------------------------------------------
@@ -107,7 +135,9 @@ class MetricsScratch:
         FPR = FP / (FP + TN)  = False Positive Rate
         TPR = TP / (TP + FN)  = True Positive Rate = Recall
         """
-        y_true, _, y_scores = MetricsScratch._validate_binary_inputs(y_true, y_scores=y_scores)
+        y_true, _, y_scores = MetricsScratch._validate_binary_inputs(
+            y_true, y_scores=y_scores, positive_class=positive_class
+        )
         y_true_binary = (y_true == positive_class).astype(int)
 
         n_pos = int(np.sum(y_true_binary == 1))
@@ -115,7 +145,7 @@ class MetricsScratch:
 
         if n_pos == 0 or n_neg == 0:
             raise ValueError(
-                "Both positive (class 1) and negative (class 0) samples are required to compute ROC AUC."
+                f"Both positive (class {positive_class}) and negative samples are required to compute ROC AUC."
             )
 
         # Sort by score descending (highest score first)
@@ -193,7 +223,7 @@ class MetricsScratch:
         p = MetricsScratch.precision(y_true, y_pred, positive_class)
         r = MetricsScratch.recall(y_true, y_pred, positive_class)
         denom = p + r
-        return float(2 * p * r / denom) if denom > 0 else 0.0
+        return float(2.0 * p * r / denom) if denom > 0 else 0.0
 
     # ------------------------------------------------------------------
     # 6. Matthews Correlation Coefficient (MCC)
@@ -237,7 +267,9 @@ class MetricsScratch:
         y_scores      : predicted probability of positive class (for AUC)
         positive_class: which label is the "positive" class (default 1)
         """
-        cls._validate_binary_inputs(y_true, y_pred=y_pred, y_scores=y_scores)
+        cls._validate_binary_inputs(
+            y_true, y_pred=y_pred, y_scores=y_scores, positive_class=positive_class
+        )
         return {
             "Accuracy" : round(cls.accuracy(y_true, y_pred), 6),
             "AUC"      : round(cls.auc_score(y_true, y_scores, positive_class), 6),
