@@ -104,8 +104,10 @@ class SVMScratch:
             raise ValueError("Training data X and y cannot be empty.")
         if len(X) != len(y):
             raise ValueError(f"Sample count mismatch: len(X)={len(X)} != len(y)={len(y)}")
-        if X.shape[1] < 1:
-            raise ValueError("X must contain at least one feature column.")
+        if X.shape[1] == 0:
+            raise ValueError("X must contain at least 1 feature.")
+        if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in y):
+            raise ValueError("Target y contains missing or invalid label values.")
         if np.isnan(X).any() or np.isinf(X).any():
             raise ValueError("X contains NaN or infinite values.")
 
