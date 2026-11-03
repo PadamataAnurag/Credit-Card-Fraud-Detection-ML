@@ -34,10 +34,15 @@ class KNNScratch:
     """
 
     def __init__(self, k=5, batch_size=500):
-        self.k          = k
-        self.batch_size = batch_size
+        if not isinstance(k, (int, np.integer)) or k <= 0:
+            raise ValueError(f"k must be a positive integer, got {k}")
+        if not isinstance(batch_size, (int, np.integer)) or batch_size <= 0:
+            raise ValueError(f"batch_size must be a positive integer, got {batch_size}")
+        self.k          = int(k)
+        self.batch_size = int(batch_size)
         self.X_train    = None
         self.y_train    = None
+        self.classes_   = None
         self.n_classes_ = 2
 
     # ------------------------------------------------------------------
@@ -46,11 +51,18 @@ class KNNScratch:
 
     def fit(self, X, y):
         """
-        Store training data.  KNN has no explicit training step.
+        Store training data with input validation and label mapping.
         """
-        self.X_train    = X.astype(np.float64)
-        self.y_train    = y.astype(int)
-        self.n_classes_ = len(np.unique(y))
+        if len(X) == 0 or len(y) == 0:
+            raise ValueError("Training data X and y cannot be empty.")
+        if len(X) != len(y):
+            raise ValueError(f"Length mismatch: len(X)={len(X)} != len(y)={len(y)}")
+        self.classes_   = np.unique(y)
+        self.n_classes_ = len(self.classes_)
+        # Map arbitrary class labels to contiguous indices 0 .. n_classes - 1
+        y_mapped        = np.searchsorted(self.classes_, y)
+        self.X_train    = np.asarray(X, dtype=np.float64)
+        self.y_train    = y_mapped.astype(int)
         return self
 
     def _euclidean_distances_batch(self, X_batch):
@@ -113,7 +125,10 @@ class KNNScratch:
             batch = X[start: start + self.batch_size]
             p, _  = self._predict_batch(batch)
             preds.append(p)
-        return np.concatenate(preds)
+        raw_preds = np.concatenate(preds)
+        if hasattr(self, 'classes_') and self.classes_ is not None:
+            return self.classes_[raw_preds]
+        return raw_preds
 
     def predict_proba(self, X):
         """

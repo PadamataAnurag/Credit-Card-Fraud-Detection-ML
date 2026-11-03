@@ -167,10 +167,15 @@ class DecisionTreeScratch:
     # ------------------------------------------------------------------
 
     def fit(self, X, y, verbose=False):
-        self.n_classes_ = len(np.unique(y))
+        if len(X) == 0 or len(y) == 0:
+            raise ValueError("Training data X and y cannot be empty.")
+        self.classes_ = np.unique(y)
+        self.n_classes_ = len(self.classes_)
+        # Map arbitrary class labels to contiguous indices 0 .. n_classes - 1
+        y_mapped = np.searchsorted(self.classes_, y)
         if verbose:
             print(f"  [DT] Building tree (max_depth={self.max_depth}) ...")
-        self.root = self._build_tree(X, y.astype(int), depth=0)
+        self.root = self._build_tree(X, y_mapped, depth=0)
         if verbose:
             print("  [DT] Tree built successfully.")
         return self
@@ -185,13 +190,20 @@ class DecisionTreeScratch:
 
     def predict(self, X):
         """Returns predicted class labels. Shape: (n_samples,)"""
-        return np.array([self._traverse(x, self.root).value for x in X])
+        if len(X) == 0:
+            return np.empty((0,), dtype=int)
+        raw_preds = np.array([self._traverse(x, self.root).value for x in X])
+        if hasattr(self, 'classes_') and self.classes_ is not None:
+            return self.classes_[raw_preds]
+        return raw_preds
 
     def predict_proba(self, X):
         """
         Returns class probabilities from leaf node distributions.
         Shape: (n_samples, n_classes)
         """
+        if len(X) == 0:
+            return np.empty((0, self.n_classes_))
         proba = []
         for x in X:
             leaf = self._traverse(x, self.root)

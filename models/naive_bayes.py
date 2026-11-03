@@ -36,8 +36,8 @@ class GaussianNaiveBayesScratch:
 
     Parameters
     ----------
-    var_smoothing : float — Small value added to variance for numerical stability
-                           (equivalent to sklearn's var_smoothing)
+    var_smoothing : float — Fixed additive smoothing constant added to each feature variance
+                            for numerical stability (prevents division by zero and log(0))
     """
 
     def __init__(self, var_smoothing=1e-9):

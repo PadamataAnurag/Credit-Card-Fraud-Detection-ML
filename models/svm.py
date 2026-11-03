@@ -83,6 +83,7 @@ class SVMScratch:
         y       : np.ndarray  shape (n_samples,)  labels {0, 1}
         verbose : bool        print loss every epoch
         """
+        self.loss_history = []
         n_samples, n_features = X.shape
         y_svm = self._to_svm_labels(y)
 
@@ -94,6 +95,9 @@ class SVMScratch:
                 self._class_weights_map[svm_c] = n_samples / (len(classes) * cnt)
         else:
             self._class_weights_map = {1: 1.0, -1: 1.0}
+
+        # Full training set sample weights for epoch loss monitoring
+        full_sample_w = np.array([self._class_weights_map.get(yi, 1.0) for yi in y_svm])
 
         # Initialise weights with small random values
         rng          = np.random.default_rng(seed=42)
@@ -113,6 +117,7 @@ class SVMScratch:
 
                 # Per-sample class weights for this batch
                 sample_w = np.array([self._class_weights_map.get(yi, 1.0) for yi in y_b])
+                sw_b_sum = sample_w.sum() if sample_w.sum() > 0 else float(n_b)
 
                 # Margin: y_i * (w.x_i + b)
                 margins = y_b * (X_b.dot(self.weights) + self.bias)
@@ -128,8 +133,8 @@ class SVMScratch:
                 if violation.any():
                     sw_viol = sample_w[violation]
                     dw -= self.C * (sw_viol[:, None] * y_b[violation, None]
-                                    * X_b[violation]).sum(axis=0) / n_b
-                    db -= self.C * (sw_viol * y_b[violation]).sum() / n_b
+                                    * X_b[violation]).sum(axis=0) / sw_b_sum
+                    db -= self.C * (sw_viol * y_b[violation]).sum() / sw_b_sum
 
                 # Learning-rate decay
                 lr = self.learning_rate / (1 + 0.01 * epoch)
@@ -137,7 +142,7 @@ class SVMScratch:
                 self.weights -= lr * dw
                 self.bias    -= lr * db
 
-            loss = self._hinge_loss(X, y_svm, sample_weight=sample_w)
+            loss = self._hinge_loss(X, y_svm, sample_weight=full_sample_w)
             self.loss_history.append(loss)
 
             if verbose:

@@ -93,6 +93,7 @@ class LogisticRegressionScratch:
         y       : np.ndarray  shape (n_samples,)  — binary labels {0, 1}
         verbose : bool        print loss every 100 iterations
         """
+        self.loss_history = []
         n_samples, n_features = X.shape
         self.weights = np.zeros(n_features)
         self.bias    = 0.0
