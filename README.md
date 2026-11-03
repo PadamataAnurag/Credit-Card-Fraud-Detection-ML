@@ -28,9 +28,10 @@ The practical goal is to deploy an automated classification pipeline capable of 
 
 ## b. Dataset Description [ 1 Mark ]
 
-- **Dataset Name**: Credit Card Fraud Detection 2026 Dataset
-- **Public Source**: Kaggle Public Repository — [Credit Card Fraud Detection Dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) (Publisher: Machine Learning Group - ULB)
-- **Dataset URL**: `https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud`
+- **Dataset Name**: Credit Card Fraud Detection Dataset 2026
+- **Dataset Author / Publisher**: Mohan Krishnathalla
+- **Public Source**: Kaggle Public Repository ([Credit Card Fraud Detection Dataset 2026](https://www.kaggle.com/datasets/mohankrishnathalla/credit-card-fraud-detection-dataset-2026))
+- **Dataset URL**: `https://www.kaggle.com/datasets/mohankrishnathalla/credit-card-fraud-detection-dataset-2026`
 - **Total Instance Size**: **100,000 instances / rows** (Substantially exceeds the minimum requirement of 500 instances)
 - **Total Feature Size**: **34 predictive features** after cleaning (Substantially exceeds the minimum requirement of 12 features)
 - **Target Variable**: `is_fraud` (Binary label: `0` for Legitimate, `1` for Fraudulent)
