@@ -385,6 +385,15 @@ if df_test is not None:
             st.error(f"❌ **Evaluation Error**: Binary evaluation requires samples from both classes: 0 (Legitimate) and 1 (Fraudulent). Found only classes: {set(np.unique(y_eval))}.")
             st.stop()
 
+        # Shared Feature Validation and Alignment Check (Defensive Post-Processing Guard)
+        if not np.isfinite(np.asarray(X_eval, dtype=float)).all():
+            st.error("❌ **Data Quality Error**: Evaluation features contain NaN or infinite values.")
+            st.stop()
+
+        if len(X_eval) != len(y_eval):
+            st.error(f"❌ **Row Count Mismatch**: Feature rows ({len(X_eval)}) and target labels ({len(y_eval)}) do not match.")
+            st.stop()
+
         # -------------------------------------------------------------------
         # Step 6(b) & (c): Model Evaluation & Display 6 Evaluation Metrics
         # -------------------------------------------------------------------
