@@ -12,6 +12,7 @@
 
 import os
 import sys
+import base64
 import numpy as np
 import pandas as pd
 import joblib
@@ -141,7 +142,21 @@ models_dict, preprocessor = load_all_models()
 with st.sidebar:
     logo_path = os.path.join(PROJECT_DIR, "bits_logo.png")
     if os.path.exists(logo_path):
-        st.image(logo_path, use_container_width=True)
+        with open(logo_path, "rb") as f_img:
+            b64_logo = base64.b64encode(f_img.read()).decode("utf-8")
+        st.markdown(
+            f"""
+            <div style="background: linear-gradient(135deg, #0b1f3a 0%, #17375e 100%);
+                        padding: 10px 14px;
+                        border-radius: 10px;
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+                        margin-bottom: 1.2rem;
+                        text-align: center;">
+                <img src="data:image/png;base64,{b64_logo}" style="width: 100%; height: auto; display: block; margin: 0 auto;">
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
         st.markdown("<div style='text-align:center; font-size: 2.5rem; margin-bottom: 0.5rem;'>🏛️</div>", unsafe_allow_html=True)
     st.markdown("### 🎓 Academic Submission")
