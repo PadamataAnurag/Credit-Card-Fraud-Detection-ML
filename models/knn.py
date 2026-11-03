@@ -53,15 +53,21 @@ class KNNScratch:
         """
         Store training data with input validation and label mapping.
         """
+        X = np.asarray(X)
+        y = np.asarray(y)
+        if X.ndim != 2:
+            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
         if len(X) == 0 or len(y) == 0:
             raise ValueError("Training data X and y cannot be empty.")
         if len(X) != len(y):
             raise ValueError(f"Length mismatch: len(X)={len(X)} != len(y)={len(y)}")
         self.classes_   = np.unique(y)
         self.n_classes_ = len(self.classes_)
+        if self.n_classes_ < 2:
+            raise ValueError(f"Training data must contain at least 2 distinct classes, got {self.classes_}")
         # Map arbitrary class labels to contiguous indices 0 .. n_classes - 1
         y_mapped        = np.searchsorted(self.classes_, y)
-        self.X_train    = np.asarray(X, dtype=np.float64)
+        self.X_train    = X.astype(np.float64)
         self.y_train    = y_mapped.astype(int)
         return self
 
