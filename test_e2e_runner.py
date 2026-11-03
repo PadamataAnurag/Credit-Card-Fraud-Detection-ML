@@ -101,7 +101,11 @@ def run_tests():
     for name, model in models_to_test:
         t0 = time.time()
         y_pred = model.predict(X_test)
-        y_proba = model.predict_proba(X_test)[:, 1]
+        if hasattr(model, 'classes_') and model.classes_ is not None and 1 in model.classes_:
+            pos_idx = int(np.where(model.classes_ == 1)[0][0])
+        else:
+            pos_idx = 1
+        y_proba = model.predict_proba(X_test)[:, pos_idx]
         elapsed = (time.time() - t0) * 1000
 
         # Assert shapes & values
