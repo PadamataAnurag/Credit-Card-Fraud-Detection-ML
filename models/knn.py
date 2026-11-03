@@ -69,6 +69,7 @@ class KNNScratch:
         y_mapped        = np.searchsorted(self.classes_, y)
         self.X_train    = X.astype(np.float64)
         self.y_train    = y_mapped.astype(int)
+        self.n_features_in_ = self.X_train.shape[1]
         return self
 
     def _euclidean_distances_batch(self, X_batch):
@@ -124,8 +125,18 @@ class KNNScratch:
         Predict class labels for X.
         Returns np.ndarray of shape (n_samples,).
         """
+        if self.X_train is None:
+            raise ValueError("Model must be fitted before prediction.")
+        X = np.asarray(X)
+        if X.ndim != 2:
+            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
         if len(X) == 0:
-            return np.empty((0,), dtype=int)
+            dtype = self.classes_.dtype if getattr(self, 'classes_', None) is not None else int
+            return np.empty((0,), dtype=dtype)
+        if hasattr(self, 'n_features_in_') and self.n_features_in_ is not None:
+            if X.shape[1] != self.n_features_in_:
+                raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+
         preds = []
         for start in range(0, len(X), self.batch_size):
             batch = X[start: start + self.batch_size]
@@ -141,8 +152,17 @@ class KNNScratch:
         Predict class probabilities for X.
         Returns np.ndarray of shape (n_samples, n_classes).
         """
+        if self.X_train is None:
+            raise ValueError("Model must be fitted before prediction.")
+        X = np.asarray(X)
+        if X.ndim != 2:
+            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
         if len(X) == 0:
             return np.empty((0, self.n_classes_))
+        if hasattr(self, 'n_features_in_') and self.n_features_in_ is not None:
+            if X.shape[1] != self.n_features_in_:
+                raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+
         probs = []
         for start in range(0, len(X), self.batch_size):
             batch = X[start: start + self.batch_size]
