@@ -167,10 +167,19 @@ class DecisionTreeScratch:
     # ------------------------------------------------------------------
 
     def fit(self, X, y, verbose=False):
+        X = np.asarray(X)
+        y = np.asarray(y)
+        if X.ndim != 2:
+            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
         if len(X) == 0 or len(y) == 0:
             raise ValueError("Training data X and y cannot be empty.")
+        if len(X) != len(y):
+            raise ValueError(f"Sample count mismatch: len(X)={len(X)} != len(y)={len(y)}")
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
+        if self.n_classes_ < 2:
+            raise ValueError(f"Training data must contain at least 2 distinct classes, got {self.classes_}")
+
         # Map arbitrary class labels to contiguous indices 0 .. n_classes - 1
         y_mapped = np.searchsorted(self.classes_, y)
         if verbose:
@@ -190,10 +199,14 @@ class DecisionTreeScratch:
 
     def predict(self, X):
         """Returns predicted class labels. Shape: (n_samples,)"""
+        X = np.asarray(X)
         if len(X) == 0:
-            return np.empty((0,), dtype=int)
+            dtype = self.classes_.dtype if getattr(self, 'classes_', None) is not None else int
+            return np.empty((0,), dtype=dtype)
+        if X.ndim != 2:
+            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
         raw_preds = np.array([self._traverse(x, self.root).value for x in X])
-        if hasattr(self, 'classes_') and self.classes_ is not None:
+        if getattr(self, 'classes_', None) is not None:
             return self.classes_[raw_preds]
         return raw_preds
 
@@ -202,10 +215,10 @@ class DecisionTreeScratch:
         Returns class probabilities from leaf node distributions.
         Shape: (n_samples, n_classes)
         """
+        X = np.asarray(X)
         if len(X) == 0:
             return np.empty((0, self.n_classes_))
-        proba = []
-        for x in X:
-            leaf = self._traverse(x, self.root)
-            proba.append(leaf.class_probs)
-        return np.array(proba)
+        if X.ndim != 2:
+            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
+        proba = np.array([self._traverse(x, self.root).class_probs for x in X])
+        return proba
