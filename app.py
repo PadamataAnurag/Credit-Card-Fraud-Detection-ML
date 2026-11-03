@@ -126,24 +126,47 @@ def load_all_models():
     for name, filename in MODEL_FILES.items():
         path = os.path.join(model_dir, filename)
         if os.path.exists(path):
-            models[name] = joblib.load(path)
+            try:
+                models[name] = joblib.load(path)
+            except Exception as e:
+                st.error(f"❌ Failed to load model artifact '{filename}': {e}")
+                st.stop()
         else:
-            st.error(f"Missing model file: {path}")
+            st.error(f"❌ Missing required model artifact: {path}")
+            st.stop()
+
     preprocessor_path = os.path.join(model_dir, "preprocessor.joblib")
-    preprocessor = joblib.load(preprocessor_path) if os.path.exists(preprocessor_path) else None
-    if len(models) < len(MODEL_FILES) or preprocessor is None:
-        st.error("CRITICAL ERROR: One or more pre-trained model artifacts or preprocessor.joblib could not be loaded from model/.")
+    if os.path.exists(preprocessor_path):
+        try:
+            preprocessor = joblib.load(preprocessor_path)
+        except Exception as e:
+            st.error(f"❌ Failed to load preprocessor artifact: {e}")
+            st.stop()
+    else:
+        st.error(f"❌ Missing required preprocessor artifact: {preprocessor_path}")
         st.stop()
+
     return models, preprocessor
 
 
 def get_positive_proba(model, X):
-    """Extract positive class probability dynamically based on model classes_."""
-    if hasattr(model, 'classes_') and model.classes_ is not None and 1 in model.classes_:
-        pos_idx = int(np.where(model.classes_ == 1)[0][0])
-    else:
-        pos_idx = 1
-    return model.predict_proba(X)[:, pos_idx]
+    """Return probability scores strictly for positive fraud class 1."""
+    classes = getattr(model, "classes_", None)
+    if classes is None:
+        raise ValueError("Model does not expose fitted classes_ attribute.")
+    classes = np.asarray(classes)
+    positive_indices = np.flatnonzero(classes == 1)
+    if len(positive_indices) != 1:
+        raise ValueError(
+            f"Model must contain exactly one positive class 1; found classes {classes.tolist()}."
+        )
+    probabilities = model.predict_proba(X)
+    if probabilities.ndim != 2 or probabilities.shape[1] != len(classes):
+        raise ValueError(
+            f"Model probability output shape {probabilities.shape} does not match classes {classes.tolist()}."
+        )
+    return probabilities[:, positive_indices[0]]
+
 
 models_dict, preprocessor = load_all_models()
 
@@ -237,15 +260,13 @@ uploaded_file = st.file_uploader(
 )
 
 df_test = None
-is_custom_upload = False
 
 if uploaded_file is not None:
     try:
         df_test = pd.read_csv(uploaded_file)
-        is_custom_upload = True
         st.success(f"✅ Successfully loaded uploaded CSV: `{uploaded_file.name}` ({df_test.shape[0]:,} rows, {df_test.shape[1]} columns)")
     except Exception as e:
-        st.error(f"Error reading uploaded CSV: {e}")
+        st.error(f"❌ Error reading uploaded CSV: {e}")
 elif os.path.exists(default_test_path):
     df_test = pd.read_csv(default_test_path)
     st.info(f"📁 Using bundled default test dataset: `test_data.csv` ({df_test.shape[0]:,} rows, {df_test.shape[1]} columns). You can upload a custom CSV above.")
@@ -253,6 +274,11 @@ else:
     st.warning("⚠️ Default `test_data.csv` not found. Please upload a test CSV file.")
 
 if df_test is not None:
+    # Validate non-empty DataFrame
+    if df_test.empty or df_test.shape[1] == 0:
+        st.error("❌ The provided CSV dataset contains no rows or no columns.")
+        st.stop()
+
     # Auto-detect target column
     target_col = None
     for candidate in ["is_fraud", "fraud", "target", "class", "Class", "label"]:
@@ -275,34 +301,47 @@ if df_test is not None:
                 st.write("**Class Counts:**")
                 st.write(f"- Legitimate (0): `{class_counts.get(0, 0):,}`")
                 st.write(f"- Fraudulent (1): `{class_counts.get(1, 0):,}`")
-                fraud_rate = (class_counts.get(1, 0) / len(df_test)) * 100
+                total_len = len(df_test)
+                fraud_rate = (class_counts.get(1, 0) / total_len) * 100 if total_len > 0 else 0.0
                 st.write(f"- Fraud Rate: `{fraud_rate:.2f}%`")
 
-        # Feature separation & smart raw vs preprocessed detection
-        is_raw_data = False
-        if preprocessor is not None:
-            has_str_cols = df_test.select_dtypes(include=['object', 'string', 'category']).shape[1] > 0
-            has_id_cols = any(col in df_test.columns for col in getattr(preprocessor, 'ID_COLS', []) + getattr(preprocessor, 'LEAK_COLS', []))
-            if has_str_cols or has_id_cols:
-                is_raw_data = True
+        feature_cols = getattr(preprocessor, 'feature_cols_', None)
+        if not feature_cols:
+            st.error("❌ **Internal Configuration Error**: Preprocessor feature definitions not found.")
+            st.stop()
+
+        # Reliable Schema Detection (Compare columns against feature_cols_ and raw identifier columns)
+        has_str_cols = df_test.select_dtypes(include=['object', 'string', 'category']).shape[1] > 0
+        has_raw_id_cols = any(col in df_test.columns for col in getattr(preprocessor, 'ID_COLS', []) + getattr(preprocessor, 'LEAK_COLS', []))
+        has_all_preprocessed_cols = all(col in df_test.columns for col in feature_cols)
+
+        if has_all_preprocessed_cols and not has_str_cols and not has_raw_id_cols:
+            auto_detected_mode = "Preprocessed (34 Scaled Features)"
+        else:
+            auto_detected_mode = "Raw Dataset (Applies Preprocessing Pipeline)"
+
+        schema_col, _ = st.columns([3, 1])
+        with schema_col:
+            chosen_schema_mode = st.radio(
+                "📋 Dataset Processing Pipeline Mode:",
+                ["Preprocessed (34 Scaled Features)", "Raw Dataset (Applies Preprocessing Pipeline)"],
+                index=0 if auto_detected_mode == "Preprocessed (34 Scaled Features)" else 1,
+                horizontal=True,
+                help="Select 'Preprocessed' if your file already contains the 34 scaled continuous features. Select 'Raw' if your file contains unscaled transaction attributes requiring encoding and scaling.",
+            )
+
+        is_raw_data = (chosen_schema_mode == "Raw Dataset (Applies Preprocessing Pipeline)")
 
         if is_raw_data:
             try:
-                # Normalize target alias if necessary
                 raw_df_input = df_test.copy()
                 if target_col != "is_fraud" and target_col in raw_df_input.columns:
                     raw_df_input = raw_df_input.rename(columns={target_col: "is_fraud"})
                 X_eval, y_eval = preprocessor.transform(raw_df_input)
             except Exception as ex:
-                st.error(f"❌ **Raw Schema Validation Error**: Failed to transform uploaded raw CSV data ({ex}). Please verify that your uploaded file contains the required transaction feature columns.")
+                st.error(f"❌ **Raw Schema Transformation Error**: Failed to transform uploaded raw CSV data ({ex}). Please verify that your uploaded file contains the required transaction feature columns.")
                 st.stop()
         else:
-            # Strict feature schema validation — NO silent fallback!
-            feature_cols = getattr(preprocessor, 'feature_cols_', None)
-            if not feature_cols:
-                st.error("❌ **Internal Configuration Error**: Preprocessor feature definitions not found.")
-                st.stop()
-
             missing_cols = [col for col in feature_cols if col not in df_test.columns]
             if missing_cols:
                 st.error(f"❌ **Schema Validation Error**: Uploaded preprocessed dataset is missing {len(missing_cols)} required feature columns: `{missing_cols[:5]}`. Expected all 34 preprocessed transaction features.")
@@ -311,24 +350,40 @@ if df_test is not None:
             # Exact feature order alignment
             X_df = df_test[feature_cols].copy()
 
-            # Handle missing values strictly using training-fitted scaler statistics (NEVER test-batch means)
+            # Reject missing values in preprocessed data (per audit review recommendation: never silently alter scaled data)
             if X_df.isna().any().any():
-                training_means = getattr(getattr(preprocessor, 'scaler_', None), 'mean_', None)
-                if training_means is not None:
-                    fill_series = pd.Series(training_means, index=feature_cols)
-                    X_df = X_df.fillna(fill_series)
-                else:
-                    st.error("❌ **Data Quality Error**: Missing values detected in preprocessed data and no training statistics available.")
-                    st.stop()
-
-            X_eval = X_df.values.astype(float)
-            y_eval = pd.to_numeric(df_test[target_col], errors='coerce').fillna(0).astype(int).values
-
-            # Verify target contains valid binary labels
-            unique_labels = set(np.unique(y_eval))
-            if not unique_labels.issubset({0, 1}):
-                st.error(f"❌ **Target Validation Error**: Target column '{target_col}' must contain binary labels {{0, 1}}, but got {unique_labels}.")
+                nan_cols = X_df.columns[X_df.isna().any()].tolist()
+                st.error(f"❌ **Data Quality Error**: Missing values detected in preprocessed feature columns: `{nan_cols[:5]}`. Preprocessed evaluation data must be complete without missing values.")
                 st.stop()
+
+            # Validate numeric feature parsing
+            try:
+                X_eval = X_df.values.astype(float)
+            except Exception as ex:
+                st.error(f"❌ **Numeric Parsing Error**: Failed to parse feature columns into float: {ex}")
+                st.stop()
+
+            if not np.all(np.isfinite(X_eval)):
+                st.error("❌ **Data Quality Error**: Preprocessed feature matrix contains NaN or infinite values.")
+                st.stop()
+
+            # Strict Binary Target Validation (Fix 1)
+            target_numeric = pd.to_numeric(df_test[target_col], errors="coerce")
+            if target_numeric.isna().any():
+                st.error(f"❌ **Target Validation Error**: Target column '{target_col}' contains missing or non-numeric values.")
+                st.stop()
+            if not np.isfinite(target_numeric.to_numpy(dtype=float)).all():
+                st.error(f"❌ **Target Validation Error**: Target column '{target_col}' contains non-finite values.")
+                st.stop()
+            if not np.isin(target_numeric.to_numpy(dtype=float), [0, 1]).all():
+                st.error(f"❌ **Target Validation Error**: Target column '{target_col}' must contain strictly binary integer labels 0 and 1.")
+                st.stop()
+            y_eval = target_numeric.astype(int).to_numpy()
+
+        # Shared Binary Class Balance Check (Fix 5)
+        if set(np.unique(y_eval)) != {0, 1}:
+            st.error(f"❌ **Evaluation Error**: Binary evaluation requires samples from both classes: 0 (Legitimate) and 1 (Fraudulent). Found only classes: {set(np.unique(y_eval))}.")
+            st.stop()
 
         # -------------------------------------------------------------------
         # Step 6(b) & (c): Model Evaluation & Display 6 Evaluation Metrics
@@ -381,7 +436,7 @@ if df_test is not None:
         st.caption("✨ Metrics are calculated strictly from mathematical first principles using pure NumPy (trapezoidal rule for AUC, harmonic mean for F1, Pearson phi for MCC).")
 
         # -------------------------------------------------------------------
-        # Step 6(d): Confusion Matrix & Classification Breakdown
+        # Step 6(d): Confusion Matrix & Diagnostic Visualizations
         # -------------------------------------------------------------------
         st.markdown("---")
         st.markdown("### 🎯 3. Confusion Matrix & Diagnostic Visualizations")
@@ -410,6 +465,7 @@ if df_test is not None:
             ax.set_title(f"Confusion Matrix — {selected_model_name}", fontsize=12, pad=10)
             plt.tight_layout()
             st.pyplot(fig)
+            plt.close(fig)
 
             st.markdown(
                 f"""
@@ -433,6 +489,7 @@ if df_test is not None:
             ax_roc.grid(True, linestyle=":", alpha=0.6)
             plt.tight_layout()
             st.pyplot(fig_roc)
+            plt.close(fig_roc)
 
         # Step 6(d): Detailed Classification Report
         with st.expander("📋 View Detailed Classification Report", expanded=True):
@@ -509,7 +566,20 @@ if df_test is not None:
             }),
             use_container_width=True,
         )
-        st.info("💡 Highlighted cells indicate the highest metric score among the 5 models. **Naive Bayes** and **SVM** demonstrate strong AUC and balanced fraud recall under class imbalance.")
+
+        winner_auc = comp_df.loc[comp_df["AUC"].idxmax(), "Model"]
+        winner_f1  = comp_df.loc[comp_df["F1 Score"].idxmax(), "Model"]
+        winner_mcc = comp_df.loc[comp_df["MCC Score"].idxmax(), "Model"]
+        max_auc_val = comp_df["AUC"].max()
+        max_f1_val  = comp_df["F1 Score"].max()
+        max_mcc_val = comp_df["MCC Score"].max()
+
+        st.info(
+            f"💡 **Dynamic Model Benchmark Insights**:\n"
+            f"- **Best AUC**: **{winner_auc}** (`{max_auc_val:.4f}`) — strongest overall discriminatory ranking capability.\n"
+            f"- **Best F1 Score**: **{winner_f1}** (`{max_f1_val:.4f}`) — optimal harmonic balance of fraud precision and recall.\n"
+            f"- **Best MCC Score**: **{winner_mcc}** (`{max_mcc_val:.4f}`) — highest balanced correlation coefficient under severe class imbalance."
+        )
 
 # ---------------------------------------------------------------------------
 # Footer
