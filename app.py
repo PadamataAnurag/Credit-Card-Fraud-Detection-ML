@@ -137,6 +137,14 @@ def load_all_models():
     return models, preprocessor
 
 
+def get_positive_proba(model, X):
+    """Extract positive class probability dynamically based on model classes_."""
+    if hasattr(model, 'classes_') and model.classes_ is not None and 1 in model.classes_:
+        pos_idx = int(np.where(model.classes_ == 1)[0][0])
+    else:
+        pos_idx = 1
+    return model.predict_proba(X)[:, pos_idx]
+
 models_dict, preprocessor = load_all_models()
 
 # ---------------------------------------------------------------------------
@@ -332,7 +340,7 @@ if df_test is not None:
         # Compute predictions and probabilities
         with st.spinner(f"Computing predictions with {selected_model_name}..."):
             y_pred = active_model.predict(X_eval)
-            y_proba = active_model.predict_proba(X_eval)[:, 1]
+            y_proba = get_positive_proba(active_model, X_eval)
             metrics = MetricsScratch.compute_all(y_eval, y_pred, y_proba)
 
         # Display 6 Metric Cards
@@ -475,7 +483,7 @@ if df_test is not None:
         comparison_rows = []
         for idx, (m_name, m_inst) in enumerate(models_dict.items()):
             p = m_inst.predict(X_eval)
-            pb = m_inst.predict_proba(X_eval)[:, 1]
+            pb = get_positive_proba(m_inst, X_eval)
             m_scores = MetricsScratch.compute_all(y_eval, p, pb)
             comparison_rows.append({
                 "Model": m_name,
