@@ -141,7 +141,7 @@ models_dict, preprocessor = load_all_models()
 with st.sidebar:
     logo_path = os.path.join(PROJECT_DIR, "bits_logo.png")
     if os.path.exists(logo_path):
-        st.image(logo_path, width=130)
+        st.image(logo_path, use_container_width=True)
     else:
         st.markdown("<div style='text-align:center; font-size: 2.5rem; margin-bottom: 0.5rem;'>🏛️</div>", unsafe_allow_html=True)
     st.markdown("### 🎓 Academic Submission")
