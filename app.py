@@ -139,10 +139,11 @@ models_dict, preprocessor = load_all_models()
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.image(
-        "https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/BITS_Pilani-Logo.svg/1200px-BITS_Pilani-Logo.svg.png",
-        width=120,
-    )
+    logo_path = os.path.join(PROJECT_DIR, "bits_logo.png")
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=130)
+    else:
+        st.markdown("<div style='text-align:center; font-size: 2.5rem; margin-bottom: 0.5rem;'>🏛️</div>", unsafe_allow_html=True)
     st.markdown("### 🎓 Academic Submission")
     st.markdown(
         """
