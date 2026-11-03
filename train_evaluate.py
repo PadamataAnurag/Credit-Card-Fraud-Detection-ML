@@ -72,26 +72,28 @@ def print_banner(title):
     print(BANNER)
 
 
-def train_test_split_manual(X, y, test_size=0.20, seed=42):
+def train_test_split_raw_df(df, target_col="is_fraud", test_size=0.20, seed=42):
     """
-    Manual train/test split — no sklearn.
-    Stratified to preserve class ratio.
+    Stratified train/test split on raw DataFrame — pure NumPy indexing, no sklearn.
+    Guarantees zero data leakage prior to fitting the preprocessor.
     """
-    rng      = np.random.default_rng(seed)
-    classes  = np.unique(y)
+    rng = np.random.default_rng(seed)
+    classes = df[target_col].unique()
     train_idx, test_idx = [], []
 
     for c in classes:
-        c_idx      = np.where(y == c)[0]
+        c_idx = df.index[df[target_col] == c].to_numpy().copy()
         rng.shuffle(c_idx)
-        n_test     = max(1, int(len(c_idx) * test_size))
+        n_test = max(1, int(len(c_idx) * test_size))
         test_idx.extend(c_idx[:n_test].tolist())
         train_idx.extend(c_idx[n_test:].tolist())
 
     rng.shuffle(train_idx)
     rng.shuffle(test_idx)
-    return (X[train_idx], X[test_idx],
-            y[train_idx], y[test_idx])
+
+    train_df = df.iloc[train_idx].reset_index(drop=True)
+    test_df  = df.iloc[test_idx].reset_index(drop=True)
+    return train_df, test_df
 
 
 def evaluate_model(name, model, X_test, y_test):
@@ -133,31 +135,36 @@ def main():
     print(f"  Shape   : {df.shape}")
     print(f"  Classes : {df['is_fraud'].value_counts().to_dict()}")
 
-    # ── 2. PREPROCESS ───────────────────────────────────────────────────────
-    print_banner("STEP 2 — Preprocessing")
-    preprocessor = Preprocessor()
-    X, y = preprocessor.fit_transform(df)
-    print(f"  Features after preprocessing : {X.shape[1]}")
-    print(f"  Total samples                : {X.shape[0]}")
-    print(f"  Class 0 (Legitimate)         : {(y==0).sum()}")
-    print(f"  Class 1 (Fraud)              : {(y==1).sum()}")
+    # ── 2. STRATIFIED TRAIN / TEST SPLIT ON RAW DATA (ZERO LEAKAGE) ─────────
+    print_banner("STEP 2 — Stratified Train/Test Split on Raw Data (80/20)")
+    train_df_raw, test_df_raw = train_test_split_raw_df(
+        df, target_col="is_fraud", test_size=TEST_SIZE, seed=RANDOM_SEED
+    )
+    print(f"  Train Partition (Raw) : {train_df_raw.shape[0]:,} samples")
+    print(f"  Test Partition (Raw)  : {test_df_raw.shape[0]:,} samples")
 
-    # ── 3. TRAIN / TEST SPLIT ───────────────────────────────────────────────
-    print_banner("STEP 3 — Stratified Train/Test Split (80/20)")
-    X_train, X_test, y_train, y_test = train_test_split_manual(
-        X, y, test_size=TEST_SIZE, seed=RANDOM_SEED)
-    print(f"  Train : {X_train.shape[0]} samples")
-    print(f"  Test  : {X_test.shape[0]} samples")
+    # ── 3. PREPROCESS (FITTED EXCLUSIVELY ON TRAINING PARTITION) ────────────
+    print_banner("STEP 3 — Preprocessing (Fitted Exclusively on Train Partition)")
+    preprocessor = Preprocessor()
+    X_train, y_train = preprocessor.fit_transform(train_df_raw)
+    X_test, y_test   = preprocessor.transform(test_df_raw)
+
+    print(f"  Features after preprocessing : {X_train.shape[1]}")
+    print(f"  X_train shape                : {X_train.shape}")
+    print(f"  X_test shape                 : {X_test.shape}")
+    print(f"  Train Class 0 (Legit)        : {(y_train==0).sum():,} samples")
+    print(f"  Train Class 1 (Fraud)        : {(y_train==1).sum():,} samples")
+    print(f"  Test Class 0 (Legit)         : {(y_test==0).sum():,} samples")
+    print(f"  Test Class 1 (Fraud)         : {(y_test==1).sum():,} samples")
 
     # Save test data for Streamlit app
-    test_df           = pd.DataFrame(X_test,
-                                     columns=preprocessor.feature_cols_)
+    test_df = pd.DataFrame(X_test, columns=preprocessor.feature_cols_)
     test_df["is_fraud"] = y_test
-    test_csv_path     = os.path.join(PROJECT_DIR, "test_data.csv")
+    test_csv_path = os.path.join(PROJECT_DIR, "test_data.csv")
     test_df.to_csv(test_csv_path, index=False)
     print(f"  Test data saved -> {test_csv_path}")
 
-    # Save preprocessor (needed by Streamlit app)
+    # Save preprocessor (strictly fitted only on training data)
     save_model(preprocessor, "preprocessor")
 
     # ── 4. DEFINE MODELS ────────────────────────────────────────────────────

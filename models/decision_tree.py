@@ -58,7 +58,8 @@ class DecisionTreeScratch:
     ----------
     max_depth         : int  — Maximum tree depth
     min_samples_split : int  — Min samples required to split a node
-    n_thresholds      : int  — Number of candidate thresholds per feature
+    n_thresholds      : int  — Number of candidate thresholds per feature (percentile-sampled
+                               between 5th and 95th percentiles for efficient continuous partitioning)
     """
 
     def __init__(self, max_depth=10, min_samples_split=5, n_thresholds=20):

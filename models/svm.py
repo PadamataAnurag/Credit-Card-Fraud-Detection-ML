@@ -157,7 +157,7 @@ class SVMScratch:
 
     def predict_proba(self, X):
         """
-        Approximate probability via Platt scaling (sigmoid on decision scores).
+        Sigmoid-transformed probability approximation mapping raw margin distance to [0, 1].
         Returns shape (n_samples, 2).
         """
         scores = self.decision_function(X)

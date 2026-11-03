@@ -87,12 +87,13 @@ def main():
     print("=" * 95)
     print(f"  {'ML Model Name':<28} {'Accuracy':>10} {'AUC':>10} {'Precision':>10} {'Recall':>10} {'F1 Score':>10} {'MCC':>10}")
     print("=" * 95)
+    winner = max(results, key=lambda x: x["F1"])
     for r in results:
-        tag = " ⭐ (Winner)" if "Naive Bayes" in r["Model"] else ""
+        tag = " ⭐ (Winner)" if r["Model"] == winner["Model"] else ""
         disp_name = r["Model"] + tag
         print(f"  {disp_name:<28} {r['Accuracy']:>10.4f} {r['AUC']:>10.4f} {r['Precision']:>10.4f} {r['Recall']:>10.4f} {r['F1']:>10.4f} {r['MCC']:>10.4f}")
     print("=" * 95)
-    print("  ⭐ Winner: Gaussian Naive Bayes achieves the highest balanced F1 Score (0.4495) and MCC Score (0.3844).")
+    print(f"  ⭐ Winner: {winner['Model']} achieves the highest balanced F1 Score ({winner['F1']:.4f}) and MCC Score ({winner['MCC']:.4f}).")
 
     # 4. Interactive App Launch Instructions
     print("\n🌐 [STEP 4] Interactive Streamlit Frontend Application:")

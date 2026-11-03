@@ -92,31 +92,31 @@ class MetricsScratch:
         TPR = TP / (TP + FN)  = True Positive Rate = Recall
         """
         y_true   = np.asarray(y_true)
+        y_true   = (np.asarray(y_true) == positive_class).astype(int)
         y_scores = np.asarray(y_scores)
 
+        n_pos = int(np.sum(y_true == 1))
+        n_neg = int(len(y_true) - n_pos)
+
+        if n_pos == 0 or n_neg == 0:
+            return np.array([0.0, 1.0]), np.array([0.0, 1.0])
+
         # Sort by score descending (highest score first)
-        sorted_idx = np.argsort(y_scores)[::-1]
-        y_true_s   = y_true[sorted_idx]
+        desc_idx = np.argsort(y_scores)[::-1]
+        y_scores_sorted = y_scores[desc_idx]
+        y_true_sorted = y_true[desc_idx]
 
-        n_pos = np.sum(y_true == positive_class)
-        n_neg = len(y_true) - n_pos
+        # Group identical prediction scores (distinct threshold cutoffs)
+        distinct_idx = np.where(np.diff(y_scores_sorted))[0]
+        threshold_idxs = np.r_[distinct_idx, y_true_sorted.size - 1]
 
-        tprs = [0.0]
-        fprs = [0.0]
-        tp = fp = 0
+        tps = np.cumsum(y_true_sorted)[threshold_idxs]
+        fps = 1 + threshold_idxs - tps
 
-        for label in y_true_s:
-            if label == positive_class:
-                tp += 1
-            else:
-                fp += 1
-            tprs.append(tp / n_pos if n_pos > 0 else 0)
-            fprs.append(fp / n_neg if n_neg > 0 else 0)
+        tprs = np.r_[0.0, tps / n_pos]
+        fprs = np.r_[0.0, fps / n_neg]
 
-        tprs.append(1.0)
-        fprs.append(1.0)
-
-        return np.array(fprs), np.array(tprs)
+        return fprs, tprs
 
     @staticmethod
     def auc_score(y_true, y_scores, positive_class=1):

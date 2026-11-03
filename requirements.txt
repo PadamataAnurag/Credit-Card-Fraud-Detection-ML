@@ -1,12 +1,18 @@
-# Core Streamlit Web Application
-streamlit
+# =============================================================================
+# Credit Card Fraud Detection — Dependencies
+# Python Tested: Python 3.10, 3.11, 3.12
+# Note: Classification models & evaluation metrics are pure NumPy implementations.
+# =============================================================================
 
-# Machine Learning & Scientific Computing
-scikit-learn
-numpy
-pandas
-joblib
+# Core Web Application
+streamlit>=1.35.0
 
-# Data Visualization & Confusion Matrix Heatmaps
-matplotlib
-seaborn
+# Numerical Computing & Serialized Artifacts
+numpy>=1.26.0
+pandas>=2.2.0
+scikit-learn>=1.4.0
+joblib>=1.3.0
+
+# Diagnostic Visualizations & Confusion Matrix Heatmaps
+matplotlib>=3.8.0
+seaborn>=0.13.0

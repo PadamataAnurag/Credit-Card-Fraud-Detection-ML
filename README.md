@@ -87,15 +87,15 @@ project-folder/
 
 ## d. Models Used: [ 5 Marks — 1 Mark per Model ]
 
-All 5 classification models and all 6 evaluation metrics were built **from scratch using pure NumPy** without relying on predefined scikit-learn estimators. All 5 models were trained on the identical 80,000-sample training partition and evaluated on the identical stratified test partition.
+All 5 classification models and all 6 evaluation metrics were built **from scratch using pure NumPy** without relying on predefined scikit-learn estimators. The parametric models (Logistic Regression, Decision Tree, Naive Bayes, Linear SVM) were trained on the complete 80,000-sample training partition. K-Nearest Neighbor (KNN) utilizes a stratified 10,000-sample training subset to ensure sub-second inference latency and comply with Streamlit Community Cloud resource bounds (1GB RAM). All 5 models are evaluated on the identical 20,000-sample stratified test partition.
 
 ### 1. Model Comparison Table
 
 | ML Model Name | Accuracy | AUC | Precision | Recall | F1 | MCC |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Logistic Regression** | 0.5587 | **0.8356** | 0.0408 | **0.9100** | 0.0781 | 0.1314 |
-| **Decision Tree** | 0.8631 | 0.5850 | 0.0461 | 0.2871 | 0.0794 | 0.0689 |
-| **KNN (k=7)** | **0.9792** | 0.6337 | **0.2500** | 0.0049 | 0.0095 | 0.0324 |
+| **Decision Tree** | 0.8631 | 0.5859 | 0.0461 | 0.2871 | 0.0794 | 0.0689 |
+| **KNN (k=7)** | **0.9792** | 0.6345 | **0.2500** | 0.0049 | 0.0095 | 0.0324 |
 | **Naive Bayes (Gaussian)** | 0.9066 | 0.8193 | 0.1004 | 0.4453 | **0.1638** | **0.1782** |
 | **Support Vector Machine (Linear SGD)** | 0.6425 | 0.8247 | 0.0475 | 0.8613 | 0.0901 | 0.1465 |
 
@@ -106,10 +106,10 @@ All 5 classification models and all 6 evaluation metrics were built **from scrat
 | ML Model Name | Observation about model performance |
 |---|---|
 | **Logistic Regression** | Demonstrates the highest discrimination capability across probability thresholds with an **AUC of 0.8356** and exceptional **Recall of 91.00%** (detecting 374 out of 411 fraud cases in the test set). Because the model utilizes class-weighted gradient updates to counteract the 47:1 class imbalance, its decision boundary is shifted to catch rare frauds, which causes a trade-off in nominal Accuracy (55.87%) and Precision (4.08%) due to higher false positives. It serves as an excellent high-sensitivity early screening stage. |
-| **Decision Tree** | Achieves an **Accuracy of 86.31%** and an **AUC of 0.5850**, identifying 118 out of 411 fraudulent transactions (**Recall of 28.71%**). By recursively evaluating Gini impurity across feature splits (such as transaction amount and spending velocity indicators), the CART tree partitions decision boundaries into orthogonal regions. However, with an imbalanced 47:1 ratio, majority-class leaf nodes dominate unless deeply split, leading to 2,444 false positives and a lower **Precision of 4.61%** and **F1 Score of 0.0794**. |
+| **Decision Tree** | Achieves an **Accuracy of 86.31%** and an **AUC of 0.5859**, identifying 118 out of 411 fraudulent transactions (**Recall of 28.71%**). By recursively evaluating Gini impurity across percentile-sampled feature splits (such as transaction amount and velocity indicators), the CART tree partitions decision boundaries into orthogonal regions. However, with an imbalanced 47:1 ratio, majority-class leaf nodes dominate unless deeply split, leading to 2,444 false positives and a lower **Precision of 4.61%** and **F1 Score of 0.0794**. |
 | **KNN** | Yields high overall **Accuracy (97.92%)** and the highest **Precision (25.00%)**, but suffers severely from the curse of dimensionality across 34 normalized features combined with extreme class imbalance. In a $k=7$ nearest-neighbor sphere, legitimate transactions statistically dominate local space, preventing the minority vote from surpassing the threshold. Consequently, the model achieves a negligible **Recall of 0.49%** and **F1 Score of 0.0095**, rendering standard Euclidean KNN unsuitable for raw imbalanced fraud detection. |
 | **Naive Bayes** | Displays the most robust balanced performance across all dimensions, achieving the highest **F1 Score (0.1638)** and the highest **MCC Score (0.1782)** while maintaining **90.66% Accuracy**, **0.8193 AUC**, and **44.53% Recall**. By modeling class-conditional feature distributions independently via Gaussian probability density functions, it captures strong abnormal shifts in fraud indicators without becoming biased toward the majority class prior. |
-| **Support Vector Machine** | Implemented using class-weighted Hinge Loss with Mini-Batch Stochastic Gradient Descent and Platt probability scaling. The linear hyperplane establishes effective global separation, reaching a strong **AUC of 0.8247** and high **Recall of 86.13%** (identifying 354 fraud transactions). Like Logistic Regression, the margin penalties for minority misses drive a trade-off against precision (4.75%) and accuracy (64.25%). |
+| **Support Vector Machine** | Implemented using class-weighted Hinge Loss with Mini-Batch Stochastic Gradient Descent and sigmoid-transformed margin probability approximation. The linear hyperplane establishes effective global separation, reaching a strong **AUC of 0.8247** and high **Recall of 86.13%** (identifying 354 fraud transactions). Like Logistic Regression, the margin penalties for minority misses drive a trade-off against precision (4.75%) and accuracy (64.25%). |
 | **Overall, Winner for your dataset?** | **Gaussian Naive Bayes is the overall winner for this Credit Card Fraud dataset.** In high-stakes fraud detection with severe class imbalance (97.95% vs 2.05%), raw Accuracy is deceptive. Naive Bayes delivers the best operational trade-off: it catches **44.53% of all fraud attacks** while maintaining a high **90.66% overall accuracy** and the highest **F1 Score (0.1638)** and **MCC Score (0.1782)** among all 5 models. |
 
 ---

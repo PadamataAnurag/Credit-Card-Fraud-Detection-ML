@@ -111,7 +111,7 @@ MODEL_DESCRIPTIONS = {
     "Decision Tree": "CART algorithm using Gini Impurity split criterion with recursive depth-bounded binary partitioning.",
     "K-Nearest Neighbor (KNN)": "Vectorized Euclidean distance computing top-k majority vote with batched matrix algebra.",
     "Naive Bayes (Gaussian)": "Probabilistic Bayesian classifier computing Gaussian class-conditional feature likelihoods.",
-    "Support Vector Machine (SVM)": "Linear SVM minimizing regularized Hinge Loss via Mini-Batch SGD with Platt scaling for probability estimates.",
+    "Support Vector Machine (SVM)": "Linear SVM minimizing regularized Hinge Loss via Mini-Batch SGD with sigmoid-transformed margin probability calibration.",
 }
 
 
@@ -279,10 +279,8 @@ if df_test is not None:
             try:
                 X_eval, y_eval = preprocessor.transform(df_test)
             except Exception as ex:
-                st.warning(f"Note: Raw transform encountered an issue ({ex}). Attempting direct numerical extraction...")
-                X_df = df_test.drop(columns=[target_col]).select_dtypes(include=[np.number])
-                X_eval = X_df.values.astype(float)
-                y_eval = pd.to_numeric(df_test[target_col], errors='coerce').fillna(0).astype(int).values
+                st.error(f"❌ **Schema Validation Error**: Failed to transform uploaded raw CSV data ({ex}). Please verify that your uploaded file contains the required transaction feature columns.")
+                st.stop()
         else:
             # Check if preprocessor feature columns exist and align them
             feature_cols = getattr(preprocessor, 'feature_cols_', None) if preprocessor is not None else None
@@ -292,6 +290,10 @@ if df_test is not None:
                 drop_candidates = [target_col, "Unnamed: 0", "index", "id", "ID"]
                 existing_drops = [c for c in drop_candidates if c in df_test.columns]
                 X_df = df_test.drop(columns=existing_drops).select_dtypes(include=[np.number]).copy()
+
+            if X_df.shape[1] != 34:
+                st.error(f"❌ **Feature Dimension Mismatch**: Expected 34 numerical features, but got {X_df.shape[1]}. Please check your input columns.")
+                st.stop()
 
             X_eval = X_df.values.astype(float)
             y_eval = pd.to_numeric(df_test[target_col], errors='coerce').fillna(0).astype(int).values

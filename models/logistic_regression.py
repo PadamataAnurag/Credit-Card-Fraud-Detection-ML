@@ -52,11 +52,17 @@ class LogisticRegressionScratch:
         z_clipped = np.clip(z, -500, 500)   # prevent overflow
         return 1.0 / (1.0 + np.exp(-z_clipped))
 
-    def _binary_cross_entropy(self, y_true, y_hat):
-        """BCE loss = -1/n Σ [y·log(ŷ) + (1-y)·log(1-ŷ)]"""
+    def _binary_cross_entropy(self, y_true, y_hat, sample_weight=None):
+        """
+        BCE loss = -1/n Σ w_i * [y_i · log(ŷ_i) + (1 - y_i) · log(1 - ŷ_i)]
+        Supports sample weights for class-balanced training.
+        """
         eps = 1e-15
         y_hat = np.clip(y_hat, eps, 1 - eps)
-        return -np.mean(y_true * np.log(y_hat) + (1 - y_true) * np.log(1 - y_hat))
+        raw_loss = -(y_true * np.log(y_hat) + (1 - y_true) * np.log(1 - y_hat))
+        if sample_weight is not None:
+            return float(np.sum(sample_weight * raw_loss) / np.sum(sample_weight))
+        return float(np.mean(raw_loss))
 
     # ------------------------------------------------------------------
     # Public API
@@ -101,7 +107,7 @@ class LogisticRegressionScratch:
             y_hat = self._sigmoid(z)
 
             # Weighted loss
-            loss = self._binary_cross_entropy(y, y_hat)
+            loss = self._binary_cross_entropy(y, y_hat, sample_weight=sw)
             self.loss_history.append(loss)
 
             # Weighted gradients: dL/dw = (1/Sw) X^T (sw * (y_hat - y))
