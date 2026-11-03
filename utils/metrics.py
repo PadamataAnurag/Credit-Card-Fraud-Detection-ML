@@ -38,10 +38,14 @@ class MetricsScratch:
         if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in y_true):
             raise ValueError("y_true contains missing or invalid label values.")
 
-        # Validate binary class count in y_true
+        # Validate binary class count in y_true (must be exactly 2 classes for binary evaluation)
         true_classes = np.unique(y_true)
-        if len(true_classes) > 2:
-            raise ValueError(f"Binary metrics require at most 2 distinct classes in y_true, got {len(true_classes)}: {true_classes}")
+        if len(true_classes) != 2:
+            raise ValueError(f"Binary metrics require exactly 2 distinct classes in y_true, got {len(true_classes)}: {true_classes}")
+
+        # Validate positive_class exists in y_true
+        if positive_class is not None and positive_class not in true_classes:
+            raise ValueError(f"Configured positive_class '{positive_class}' not found in y_true classes {true_classes.tolist()}.")
 
         if y_pred is not None:
             y_pred = np.asarray(y_pred)
@@ -50,8 +54,8 @@ class MetricsScratch:
             if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in y_pred):
                 raise ValueError("y_pred contains missing or invalid label values.")
             pred_classes = np.unique(y_pred)
-            if len(pred_classes) > 2:
-                raise ValueError(f"Binary metrics require at most 2 distinct classes in y_pred, got {len(pred_classes)}: {pred_classes}")
+            if not set(pred_classes).issubset(set(true_classes)):
+                raise ValueError(f"y_pred contains classes {pred_classes.tolist()} that do not match y_true classes {true_classes.tolist()}.")
 
         if y_scores is not None:
             y_scores = np.asarray(y_scores, dtype=float)
@@ -59,6 +63,8 @@ class MetricsScratch:
                 raise ValueError(f"y_scores must be 1D and match y_true length (expected {len(y_true)}, got {len(y_scores)}).")
             if not np.all(np.isfinite(y_scores)):
                 raise ValueError("y_scores contains NaN or non-finite values.")
+            if np.any(y_scores < 0.0) or np.any(y_scores > 1.0):
+                raise ValueError(f"y_scores must be probabilities strictly bounded within [0.0, 1.0], got min={np.min(y_scores):.4f}, max={np.max(y_scores):.4f}.")
 
         return y_true, y_pred, y_scores
 
@@ -120,7 +126,7 @@ class MetricsScratch:
         Accuracy = (TP + TN) / (TP + TN + FP + FN)
                  = number of correct predictions / total predictions
         """
-        y_true, y_pred, _ = MetricsScratch._validate_binary_inputs(y_true, y_pred=y_pred)
+        y_true, y_pred, _ = MetricsScratch._validate_binary_inputs(y_true, y_pred=y_pred, positive_class=None)
         return float(np.mean(y_true == y_pred))
 
     # ------------------------------------------------------------------

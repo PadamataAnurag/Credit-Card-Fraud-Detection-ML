@@ -32,11 +32,17 @@ class StandardScalerScratch:
             raise ValueError(f"X must be a 2D array, got shape {X.shape}")
         if len(X) == 0:
             raise ValueError("Cannot fit scaler on empty array.")
+        if X.shape[1] == 0:
+            raise ValueError("X must contain at least 1 feature column.")
         if np.isinf(X).any():
             raise ValueError("StandardScalerScratch.fit() received infinite values (inf or -inf).")
 
-        self.mean_ = np.nanmean(X, axis=0) if np.isnan(X).any() else np.mean(X, axis=0)
-        self.std_  = np.nanstd(X, axis=0) if np.isnan(X).any() else np.std(X, axis=0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            self.mean_ = np.nanmean(X, axis=0) if np.isnan(X).any() else np.mean(X, axis=0)
+            self.std_  = np.nanstd(X, axis=0) if np.isnan(X).any() else np.std(X, axis=0)
+        if not np.all(np.isfinite(self.mean_)):
+            raise ValueError("StandardScalerScratch: Feature matrix contains a column with all NaN values.")
         # Prevent division by zero for constant features
         self.std_[self.std_ == 0] = 1.0
         return self
@@ -47,6 +53,8 @@ class StandardScalerScratch:
         X = np.asarray(X, dtype=float)
         if X.ndim != 2:
             raise ValueError(f"X must be a 2D array, got shape {X.shape}")
+        if X.shape[1] == 0:
+            raise ValueError("X must contain at least 1 feature column.")
         if X.shape[1] != len(self.mean_):
             raise ValueError(f"Expected {len(self.mean_)} features, got {X.shape[1]}")
         if np.isinf(X).any():
@@ -134,6 +142,7 @@ class Preprocessor:
         self.cat_modes_    = {}      # feature -> mode category (for missing value imputation)
         self.scaler_       = StandardScalerScratch()
         self.feature_cols_ = []      # final feature column names
+        self.classes_      = None    # valid training target classes
 
     def _drop_columns(self, df):
         drop = self.LEAK_COLS + self.ID_COLS + self.HIGH_NULL_COLS
@@ -191,15 +200,21 @@ class Preprocessor:
         if len(target_classes) != 2:
             raise ValueError(f"Target column must contain exactly 2 classes for binary classification, got {len(target_classes)}: {target_classes}")
 
+        try:
+            y = df[self.TARGET_COL].values.astype(int)
+        except (ValueError, TypeError) as ex:
+            raise ValueError(f"Target column '{self.TARGET_COL}' contains values incompatible with binary integer labels {{0, 1}}: {ex}")
+
+        self.classes_ = target_classes.tolist()
+
         df = df.copy()
         df = self._drop_columns(df)
         df = self._encode_categoricals(df, fit=True)
 
-        # Separate target
-        y = df[self.TARGET_COL].values.astype(int)
         X_df = df.drop(columns=[self.TARGET_COL])
-
         self.feature_cols_ = X_df.columns.tolist()
+        if len(self.feature_cols_) == 0:
+            raise ValueError("Feature matrix must contain at least 1 feature column.")
 
         X = X_df.values.astype(float)
 
@@ -229,6 +244,8 @@ class Preprocessor:
         """
         if not self.feature_cols_ or self.scaler_ is None or getattr(self.scaler_, 'mean_', None) is None:
             raise ValueError("Preprocessor must be fitted before transform.")
+        if len(self.feature_cols_) == 0:
+            raise ValueError("Feature matrix must contain at least 1 feature column.")
 
         df = df.copy()
         df = self._drop_columns(df)
@@ -240,9 +257,13 @@ class Preprocessor:
             if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in raw_target):
                 raise ValueError("Test target column contains missing or invalid values.")
             test_target_classes = np.unique(raw_target)
-            if len(test_target_classes) > 2:
-                raise ValueError(f"Test target column contains more than 2 distinct classes: {test_target_classes}")
-            y = df[self.TARGET_COL].values.astype(int)
+            train_classes = getattr(self, 'classes_', None)
+            if train_classes is not None and not set(test_target_classes).issubset(set(train_classes)):
+                raise ValueError(f"Test target classes {test_target_classes.tolist()} do not match training target classes {train_classes}.")
+            try:
+                y = df[self.TARGET_COL].values.astype(int)
+            except (ValueError, TypeError) as ex:
+                raise ValueError(f"Test target column contains values incompatible with binary integer labels: {ex}")
             X_df = df.drop(columns=[self.TARGET_COL])
         else:
             y = None
