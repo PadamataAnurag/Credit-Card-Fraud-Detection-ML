@@ -102,9 +102,13 @@ def train_test_split_raw_df(df, target_col="is_fraud", test_size=0.20, seed=42):
 
 def evaluate_model(name, model, X_test, y_test):
     """Run prediction + compute all 6 metrics."""
-    y_pred   = model.predict(X_test)
-    y_scores = model.predict_proba(X_test)[:, 1]   # P(class=1)
-    metrics  = MetricsScratch.compute_all(y_test, y_pred, y_scores, positive_class=1)
+    y_pred = model.predict(X_test)
+    if hasattr(model, 'classes_') and model.classes_ is not None and 1 in model.classes_:
+        pos_idx = int(np.where(model.classes_ == 1)[0][0])
+    else:
+        pos_idx = 1
+    y_scores = model.predict_proba(X_test)[:, pos_idx]   # Dynamic positive-class probability
+    metrics = MetricsScratch.compute_all(y_test, y_pred, y_scores, positive_class=1)
 
     print(f"\n  {'Metric':<12} {'Value':>10}")
     print(f"  {'-'*25}")
@@ -136,6 +140,18 @@ def main():
     print_banner("STEP 1 — Loading Dataset")
     print(f"  Dataset : {DATASET_PATH}")
     df = pd.read_csv(DATASET_PATH)
+
+    # Dataset & Target Column Validation
+    if df.empty:
+        raise ValueError("Dataset is empty.")
+    if 'is_fraud' not in df.columns:
+        raise ValueError("Required target column 'is_fraud' is missing.")
+    if df['is_fraud'].isna().any():
+        raise ValueError("Target column contains missing values.")
+    unique_classes = np.unique(df['is_fraud'].dropna())
+    if len(unique_classes) != 2:
+        raise ValueError(f"Target column must contain exactly 2 classes for binary classification, got {len(unique_classes)}: {unique_classes}")
+
     print(f"  Shape   : {df.shape}")
     print(f"  Classes : {df['is_fraud'].value_counts().to_dict()}")
 
