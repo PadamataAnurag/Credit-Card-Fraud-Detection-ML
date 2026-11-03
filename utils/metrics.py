@@ -24,6 +24,26 @@ class MetricsScratch:
     No sklearn is used — all computed using numpy from first principles.
     """
 
+    @staticmethod
+    def _validate_binary_inputs(y_true, y_pred=None, y_scores=None):
+        """
+        Validate input dimensions, lengths, non-emptiness, and finite values.
+        """
+        y_true = np.asarray(y_true)
+        if y_true.ndim != 1 or len(y_true) == 0:
+            raise ValueError("y_true must be a non-empty 1D array.")
+        if y_pred is not None:
+            y_pred = np.asarray(y_pred)
+            if y_pred.ndim != 1 or len(y_pred) != len(y_true):
+                raise ValueError("y_pred must be 1D and match y_true length.")
+        if y_scores is not None:
+            y_scores = np.asarray(y_scores)
+            if y_scores.ndim != 1 or len(y_scores) != len(y_true):
+                raise ValueError("y_scores must be 1D and match y_true length.")
+            if not np.all(np.isfinite(y_scores)):
+                raise ValueError("y_scores contains NaN or non-finite values.")
+        return y_true, y_pred, y_scores
+
     # ------------------------------------------------------------------
     # 1. Confusion Matrix Components
     # ------------------------------------------------------------------
@@ -31,15 +51,14 @@ class MetricsScratch:
     @staticmethod
     def confusion_matrix_components(y_true, y_pred, positive_class=1):
         """
-        Compute TP, TN, FP, FN from raw predictions.
+        Compute TP, TN, FP, FN from binary predictions.
 
         TP = predicted positive AND actually positive
         TN = predicted negative AND actually negative
         FP = predicted positive AND actually negative  (Type I error)
         FN = predicted negative AND actually positive  (Type II error)
         """
-        y_true = np.asarray(y_true)
-        y_pred = np.asarray(y_pred)
+        y_true, y_pred, _ = MetricsScratch._validate_binary_inputs(y_true, y_pred=y_pred)
 
         TP = int(np.sum((y_pred == positive_class) & (y_true == positive_class)))
         TN = int(np.sum((y_pred != positive_class) & (y_true != positive_class)))
@@ -51,19 +70,17 @@ class MetricsScratch:
     @staticmethod
     def confusion_matrix(y_true, y_pred):
         """
-        Returns 2×2 confusion matrix:
+        Returns 2×2 confusion matrix for binary classification:
             [[TN, FP],
              [FN, TP]]
+
+        Layout:
+            Row 0 (Actual Negative): [TN, FP]
+            Row 1 (Actual Positive): [FN, TP]
         """
-        y_true = np.asarray(y_true)
-        y_pred = np.asarray(y_pred)
-        classes = np.unique(np.concatenate([y_true, y_pred]))
-        n = len(classes)
-        cm = np.zeros((n, n), dtype=int)
-        class_to_idx = {c: i for i, c in enumerate(classes)}
-        for t, p in zip(y_true, y_pred):
-            cm[class_to_idx[t], class_to_idx[p]] += 1
-        return cm
+        y_true, y_pred, _ = MetricsScratch._validate_binary_inputs(y_true, y_pred=y_pred)
+        TP, TN, FP, FN = MetricsScratch.confusion_matrix_components(y_true, y_pred, positive_class=1)
+        return np.array([[TN, FP], [FN, TP]], dtype=int)
 
     # ------------------------------------------------------------------
     # 1. Accuracy
@@ -75,8 +92,7 @@ class MetricsScratch:
         Accuracy = (TP + TN) / (TP + TN + FP + FN)
                  = number of correct predictions / total predictions
         """
-        y_true = np.asarray(y_true)
-        y_pred = np.asarray(y_pred)
+        y_true, y_pred, _ = MetricsScratch._validate_binary_inputs(y_true, y_pred=y_pred)
         return float(np.mean(y_true == y_pred))
 
     # ------------------------------------------------------------------
@@ -91,20 +107,21 @@ class MetricsScratch:
         FPR = FP / (FP + TN)  = False Positive Rate
         TPR = TP / (TP + FN)  = True Positive Rate = Recall
         """
-        y_true   = np.asarray(y_true)
-        y_true   = (np.asarray(y_true) == positive_class).astype(int)
-        y_scores = np.asarray(y_scores)
+        y_true, _, y_scores = MetricsScratch._validate_binary_inputs(y_true, y_scores=y_scores)
+        y_true_binary = (y_true == positive_class).astype(int)
 
-        n_pos = int(np.sum(y_true == 1))
-        n_neg = int(len(y_true) - n_pos)
+        n_pos = int(np.sum(y_true_binary == 1))
+        n_neg = int(len(y_true_binary) - n_pos)
 
         if n_pos == 0 or n_neg == 0:
-            return np.array([0.0, 1.0]), np.array([0.0, 1.0])
+            raise ValueError(
+                "Both positive (class 1) and negative (class 0) samples are required to compute ROC AUC."
+            )
 
         # Sort by score descending (highest score first)
         desc_idx = np.argsort(y_scores)[::-1]
         y_scores_sorted = y_scores[desc_idx]
-        y_true_sorted = y_true[desc_idx]
+        y_true_sorted = y_true_binary[desc_idx]
 
         # Group identical prediction scores (distinct threshold cutoffs)
         distinct_idx = np.where(np.diff(y_scores_sorted))[0]
@@ -220,6 +237,7 @@ class MetricsScratch:
         y_scores      : predicted probability of positive class (for AUC)
         positive_class: which label is the "positive" class (default 1)
         """
+        cls._validate_binary_inputs(y_true, y_pred=y_pred, y_scores=y_scores)
         return {
             "Accuracy" : round(cls.accuracy(y_true, y_pred), 6),
             "AUC"      : round(cls.auc_score(y_true, y_scores, positive_class), 6),

@@ -180,6 +180,28 @@ def run_tests():
         detected = next((c for c in ["is_fraud", "fraud", "target", "class", "Class", "label"] if c in test_alias_df.columns), None)
         assert detected == alias, f"Failed detection for {alias}"
     print("  [PASS] Target column multi-alias detection passed.")
+
+    # 5. Missing column in test transform filled with training mean (scaled to 0.0)
+    incomplete_eval_df = df_test.drop(columns=[feature_cols[0]]).copy()
+    X_inc, _ = prep.transform(incomplete_eval_df)
+    first_col_idx = prep.feature_cols_.index(feature_cols[0])
+    np.testing.assert_allclose(X_inc[:, first_col_idx], 0.0, atol=1e-7)
+    print("  [PASS] Missing test column properly imputed with training mean (scaled to 0.0).")
+
+    # 6. MetricsScratch input validation and single-class AUC guards
+    try:
+        MetricsScratch._validate_binary_inputs([1, 0], y_scores=[np.nan, 0.5])
+        assert False, "Failed to reject NaN in y_scores"
+    except ValueError:
+        pass
+    try:
+        MetricsScratch.roc_curve([1, 1, 1], [0.9, 0.8, 0.7])
+        assert False, "Failed to reject single class in roc_curve"
+    except ValueError:
+        pass
+    cm_shape = MetricsScratch.confusion_matrix([0, 1, 0, 1], [0, 0, 0, 1]).shape
+    assert cm_shape == (2, 2), f"Expected (2, 2) confusion matrix, got {cm_shape}"
+    print("  [PASS] Metrics input validation, 2x2 binary layout, and single-class AUC guards verified.")
     suite_status["SUITE 5: Schema Robustness & Imputation"] = "PASS"
 
     # -------------------------------------------------------------------------
