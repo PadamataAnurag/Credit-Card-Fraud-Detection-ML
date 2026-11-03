@@ -111,7 +111,7 @@ MODEL_DESCRIPTIONS = {
     "Decision Tree": "CART algorithm using Gini Impurity split criterion with recursive depth-bounded binary partitioning.",
     "K-Nearest Neighbor (KNN)": "Vectorized Euclidean distance computing top-k majority vote with batched matrix algebra.",
     "Naive Bayes (Gaussian)": "Probabilistic Bayesian classifier computing Gaussian class-conditional feature likelihoods.",
-    "Support Vector Machine (SVM)": "Linear SVM minimizing regularized Hinge Loss via Mini-Batch SGD with sigmoid-transformed margin probability calibration.",
+    "Support Vector Machine (SVM)": "Linear SVM minimizing regularized Hinge Loss via Mini-Batch SGD with sigmoid-transformed margin probability approximation.",
 }
 
 
@@ -131,6 +131,9 @@ def load_all_models():
             st.error(f"Missing model file: {path}")
     preprocessor_path = os.path.join(model_dir, "preprocessor.joblib")
     preprocessor = joblib.load(preprocessor_path) if os.path.exists(preprocessor_path) else None
+    if len(models) < len(MODEL_FILES) or preprocessor is None:
+        st.error("CRITICAL ERROR: One or more pre-trained model artifacts or preprocessor.joblib could not be loaded from model/.")
+        st.stop()
     return models, preprocessor
 
 
@@ -277,33 +280,47 @@ if df_test is not None:
 
         if is_raw_data:
             try:
-                X_eval, y_eval = preprocessor.transform(df_test)
+                # Normalize target alias if necessary
+                raw_df_input = df_test.copy()
+                if target_col != "is_fraud" and target_col in raw_df_input.columns:
+                    raw_df_input = raw_df_input.rename(columns={target_col: "is_fraud"})
+                X_eval, y_eval = preprocessor.transform(raw_df_input)
             except Exception as ex:
-                st.error(f"❌ **Schema Validation Error**: Failed to transform uploaded raw CSV data ({ex}). Please verify that your uploaded file contains the required transaction feature columns.")
+                st.error(f"❌ **Raw Schema Validation Error**: Failed to transform uploaded raw CSV data ({ex}). Please verify that your uploaded file contains the required transaction feature columns.")
                 st.stop()
         else:
-            # Check if preprocessor feature columns exist and align them
-            feature_cols = getattr(preprocessor, 'feature_cols_', None) if preprocessor is not None else None
-            if feature_cols and all(col in df_test.columns for col in feature_cols):
-                X_df = df_test[feature_cols].copy()
-            else:
-                drop_candidates = [target_col, "Unnamed: 0", "index", "id", "ID"]
-                existing_drops = [c for c in drop_candidates if c in df_test.columns]
-                X_df = df_test.drop(columns=existing_drops).select_dtypes(include=[np.number]).copy()
-
-            if X_df.shape[1] != 34:
-                st.error(f"❌ **Feature Dimension Mismatch**: Expected 34 numerical features, but got {X_df.shape[1]}. Please check your input columns.")
+            # Strict feature schema validation — NO silent fallback!
+            feature_cols = getattr(preprocessor, 'feature_cols_', None)
+            if not feature_cols:
+                st.error("❌ **Internal Configuration Error**: Preprocessor feature definitions not found.")
                 st.stop()
+
+            missing_cols = [col for col in feature_cols if col not in df_test.columns]
+            if missing_cols:
+                st.error(f"❌ **Schema Validation Error**: Uploaded preprocessed dataset is missing {len(missing_cols)} required feature columns: `{missing_cols[:5]}`. Expected all 34 preprocessed transaction features.")
+                st.stop()
+
+            # Exact feature order alignment
+            X_df = df_test[feature_cols].copy()
+
+            # Handle missing values strictly using training-fitted scaler statistics (NEVER test-batch means)
+            if X_df.isna().any().any():
+                training_means = getattr(getattr(preprocessor, 'scaler_', None), 'mean_', None)
+                if training_means is not None:
+                    fill_series = pd.Series(training_means, index=feature_cols)
+                    X_df = X_df.fillna(fill_series)
+                else:
+                    st.error("❌ **Data Quality Error**: Missing values detected in preprocessed data and no training statistics available.")
+                    st.stop()
 
             X_eval = X_df.values.astype(float)
             y_eval = pd.to_numeric(df_test[target_col], errors='coerce').fillna(0).astype(int).values
 
-        # Ensure no NaNs exist in X_eval
-        if np.isnan(X_eval).any():
-            col_means = np.nanmean(X_eval, axis=0)
-            col_means = np.nan_to_num(col_means, nan=0.0)
-            nan_mask = np.isnan(X_eval)
-            X_eval[nan_mask] = np.take(col_means, np.where(nan_mask)[1])
+            # Verify target contains valid binary labels
+            unique_labels = set(np.unique(y_eval))
+            if not unique_labels.issubset({0, 1}):
+                st.error(f"❌ **Target Validation Error**: Target column '{target_col}' must contain binary labels {{0, 1}}, but got {unique_labels}.")
+                st.stop()
 
         # -------------------------------------------------------------------
         # Step 6(b) & (c): Model Evaluation & Display 6 Evaluation Metrics

@@ -78,8 +78,12 @@ class KNNScratch:
         """
         distances = self._euclidean_distances_batch(X_batch.astype(np.float64))
 
+        n_train = len(self.X_train)
+        actual_k = max(1, min(self.k, n_train))
+        partition_idx = min(actual_k - 1, n_train - 1)
+
         # Indices of k nearest neighbours for each test sample
-        k_idx = np.argpartition(distances, self.k, axis=1)[:, :self.k]
+        k_idx = np.argpartition(distances, partition_idx, axis=1)[:, :actual_k]
 
         predictions = []
         probabilities = []
@@ -90,7 +94,7 @@ class KNNScratch:
             # Majority vote
             counts = np.bincount(k_labels, minlength=self.n_classes_)
             pred   = int(np.argmax(counts))
-            probs  = counts / self.k
+            probs  = counts / actual_k
 
             predictions.append(pred)
             probabilities.append(probs)
@@ -102,6 +106,8 @@ class KNNScratch:
         Predict class labels for X.
         Returns np.ndarray of shape (n_samples,).
         """
+        if len(X) == 0:
+            return np.empty((0,), dtype=int)
         preds = []
         for start in range(0, len(X), self.batch_size):
             batch = X[start: start + self.batch_size]
@@ -114,6 +120,8 @@ class KNNScratch:
         Predict class probabilities for X.
         Returns np.ndarray of shape (n_samples, n_classes).
         """
+        if len(X) == 0:
+            return np.empty((0, self.n_classes_))
         probs = []
         for start in range(0, len(X), self.batch_size):
             batch = X[start: start + self.batch_size]

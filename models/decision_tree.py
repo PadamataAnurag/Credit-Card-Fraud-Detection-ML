@@ -83,7 +83,8 @@ class DecisionTreeScratch:
 
     def _best_split(self, X, y):
         """
-        Exhaustively search over all features and candidate thresholds.
+        Search over all features and candidate split thresholds (using percentile
+        sampling between 5th and 95th percentiles for continuous feature efficiency).
         Returns (best_feature_idx, best_threshold) or (None, None).
         """
         n_samples, n_features = X.shape

@@ -35,9 +35,13 @@ candidate_data_paths = [
     os.path.join(PROJECT_DIR, "..", "Dataset", "credit_card_fraud_detection_2026.csv"),
     os.path.join(PROJECT_DIR, "data", "credit_card_fraud_detection_2026.csv"),
     os.path.join(PROJECT_DIR, "credit_card_fraud_detection_2026.csv"),
-    os.path.join(PROJECT_DIR, "test_data.csv"),
 ]
-DATASET_PATH = next((p for p in candidate_data_paths if os.path.exists(p)), candidate_data_paths[0])
+DATASET_PATH = next((p for p in candidate_data_paths if os.path.exists(p)), None)
+if DATASET_PATH is None:
+    raise FileNotFoundError(
+        "CRITICAL ERROR: Original raw dataset 'credit_card_fraud_detection_2026.csv' not found! "
+        "The training pipeline strictly requires the raw 100,000-instance dataset and disallows training on test_data.csv."
+    )
 SAVED_DIR    = os.path.join(PROJECT_DIR, "model")
 os.makedirs(SAVED_DIR, exist_ok=True)
 os.makedirs(os.path.join(PROJECT_DIR, "saved_models"), exist_ok=True)
@@ -82,7 +86,7 @@ def train_test_split_raw_df(df, target_col="is_fraud", test_size=0.20, seed=42):
     train_idx, test_idx = [], []
 
     for c in classes:
-        c_idx = df.index[df[target_col] == c].to_numpy().copy()
+        c_idx = np.where(df[target_col].values == c)[0].copy()
         rng.shuffle(c_idx)
         n_test = max(1, int(len(c_idx) * test_size))
         test_idx.extend(c_idx[:n_test].tolist())
@@ -215,12 +219,19 @@ def main():
 
         # Some models (KNN) use a training subset for speed
         if cfg.get("use_subset"):
-            subset_idx = np.random.choice(
-                len(X_train), min(KNN_SUBSET, len(X_train)), replace=False)
+            # Stratified subset sampling preserving exact class distribution
+            rng_knn = np.random.default_rng(RANDOM_SEED)
+            subset_idx = []
+            for c in np.unique(y_train):
+                c_indices = np.where(y_train == c)[0]
+                n_c = int(round(len(c_indices) / len(y_train) * min(KNN_SUBSET, len(X_train))))
+                subset_idx.extend(rng_knn.choice(c_indices, n_c, replace=False).tolist())
+            subset_idx = np.array(subset_idx)
+            rng_knn.shuffle(subset_idx)
             X_tr = X_train[subset_idx]
             y_tr = y_train[subset_idx]
-            print(f"  [KNN] Using {len(X_tr):,} training samples "
-                  f"(subset of {len(X_train):,})")
+            print(f"  [KNN] Using {len(X_tr):,} stratified training samples "
+                  f"(Class 0: {(y_tr==0).sum():,}, Class 1: {(y_tr==1).sum():,})")
         else:
             X_tr, y_tr = X_train, y_train
 

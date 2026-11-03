@@ -55,7 +55,7 @@ def main():
         ("Decision Tree Classifier", "decision_tree.joblib", "CART Algorithm + Gini Impurity"),
         ("K-Nearest Neighbor (k=7)", "knn.joblib", "Vectorized Euclidean Distance"),
         ("Naive Bayes (Gaussian)", "naive_bayes.joblib", "Class-Conditional Gaussian Likelihoods"),
-        ("Support Vector Machine", "svm.joblib", "Hinge Loss + Mini-Batch SGD + Platt Scaling"),
+        ("Support Vector Machine", "svm.joblib", "Hinge Loss + Mini-Batch SGD + Sigmoid Approximation"),
     ]
 
     results = []
@@ -87,13 +87,17 @@ def main():
     print("=" * 95)
     print(f"  {'ML Model Name':<28} {'Accuracy':>10} {'AUC':>10} {'Precision':>10} {'Recall':>10} {'F1 Score':>10} {'MCC':>10}")
     print("=" * 95)
-    winner = max(results, key=lambda x: x["F1"])
+    winner_f1  = max(results, key=lambda x: x["F1"])
+    winner_mcc = max(results, key=lambda x: x["MCC"])
     for r in results:
-        tag = " ⭐ (Winner)" if r["Model"] == winner["Model"] else ""
+        tag = " ⭐ (Winner)" if r["Model"] == winner_f1["Model"] else ""
         disp_name = r["Model"] + tag
         print(f"  {disp_name:<28} {r['Accuracy']:>10.4f} {r['AUC']:>10.4f} {r['Precision']:>10.4f} {r['Recall']:>10.4f} {r['F1']:>10.4f} {r['MCC']:>10.4f}")
     print("=" * 95)
-    print(f"  ⭐ Winner: {winner['Model']} achieves the highest balanced F1 Score ({winner['F1']:.4f}) and MCC Score ({winner['MCC']:.4f}).")
+    if winner_f1["Model"] == winner_mcc["Model"]:
+        print(f"  ⭐ Winner: {winner_f1['Model']} achieves both the highest balanced F1 Score ({winner_f1['F1']:.4f}) and highest MCC Score ({winner_mcc['MCC']:.4f}).")
+    else:
+        print(f"  ⭐ Winner: {winner_f1['Model']} achieves the highest F1 Score ({winner_f1['F1']:.4f}), while {winner_mcc['Model']} achieves the highest MCC Score ({winner_mcc['MCC']:.4f}).")
 
     # 4. Interactive App Launch Instructions
     print("\n🌐 [STEP 4] Interactive Streamlit Frontend Application:")

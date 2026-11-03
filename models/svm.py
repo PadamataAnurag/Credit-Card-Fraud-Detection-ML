@@ -29,8 +29,8 @@ class SVMScratch:
 
     Labels are internally mapped to {-1, +1} for SVM convention.
 
-    For predict_proba (needed for AUC), Platt scaling is approximated
-    by mapping the decision function value through a sigmoid.
+    For predict_proba (needed for AUC), class probabilities are estimated
+    using a sigmoid-transformed margin probability approximation.
 
     Parameters
     ----------
@@ -60,12 +60,14 @@ class SVMScratch:
         """Map {0,1} → {-1, +1} for SVM convention."""
         return np.where(y == 1, 1, -1).astype(float)
 
-    def _hinge_loss(self, X, y_svm):
-        """Compute mean hinge loss (for monitoring)."""
+    def _hinge_loss(self, X, y_svm, sample_weight=None):
+        """Compute hinge loss with optional sample weights (for monitoring)."""
         margins = y_svm * (X.dot(self.weights) + self.bias)
         hinge   = np.maximum(0, 1 - margins)
         reg     = 0.5 * np.dot(self.weights, self.weights)
-        return reg + self.C * np.mean(hinge)
+        if sample_weight is not None:
+            return float(reg + self.C * (np.sum(sample_weight * hinge) / np.sum(sample_weight)))
+        return float(reg + self.C * np.mean(hinge))
 
     # ------------------------------------------------------------------
     # Public API
@@ -135,7 +137,7 @@ class SVMScratch:
                 self.weights -= lr * dw
                 self.bias    -= lr * db
 
-            loss = self._hinge_loss(X, y_svm)
+            loss = self._hinge_loss(X, y_svm, sample_weight=sample_w)
             self.loss_history.append(loss)
 
             if verbose:
