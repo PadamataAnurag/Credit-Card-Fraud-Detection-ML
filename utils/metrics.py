@@ -178,8 +178,9 @@ class MetricsScratch:
               AUC = Σ (FPR_i+1 - FPR_i) * (TPR_i+1 + TPR_i) / 2
         """
         fprs, tprs = MetricsScratch.roc_curve(y_true, y_scores, positive_class)
-        # Trapezoidal integration
-        auc = float(np.trapz(tprs, fprs))
+        # Trapezoidal integration compatible with NumPy 1.x (np.trapz) and NumPy 2.x (np.trapezoid)
+        trapz_fn = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
+        auc = float(trapz_fn(tprs, fprs))
         return auc
 
     # ------------------------------------------------------------------

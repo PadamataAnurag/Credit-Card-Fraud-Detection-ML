@@ -182,6 +182,34 @@ class Preprocessor:
 
         return df
 
+    @staticmethod
+    def _validate_binary_target(series, name="Target column"):
+        """
+        Strictly validate that series contains only integer-valued binary labels {0, 1}.
+        Rejects fractional non-integers (e.g. 0.2, 1.2), non-standard integers (e.g. -1, 1),
+        and missing or null values.
+        """
+        raw_vals = series.values
+        if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in raw_vals):
+            raise ValueError(f"{name} contains missing or null values.")
+
+        try:
+            numeric_vals = pd.to_numeric(series, errors='raise').values
+        except (ValueError, TypeError) as ex:
+            raise ValueError(f"{name} contains non-numeric values incompatible with binary labels {{0, 1}}: {ex}")
+
+        # Check for fractional non-integers
+        if not np.all(np.equal(numeric_vals, np.floor(numeric_vals))):
+            frac_examples = numeric_vals[numeric_vals != np.floor(numeric_vals)][:3]
+            raise ValueError(f"{name} contains fractional non-integer values (e.g. {frac_examples}). Expected strictly binary integers {{0, 1}}.")
+
+        int_vals = numeric_vals.astype(int)
+        unique_vals = set(np.unique(int_vals))
+        if not unique_vals.issubset({0, 1}):
+            raise ValueError(f"{name} contains invalid class labels {unique_vals}. Expected strictly {{0, 1}}.")
+
+        return int_vals
+
     def fit_transform(self, df):
         """
         Full pipeline applied to TRAINING data.
@@ -192,20 +220,13 @@ class Preprocessor:
         if self.TARGET_COL not in df.columns:
             raise ValueError(f"Target column '{self.TARGET_COL}' not found in training DataFrame.")
 
-        # Explicit target validation
-        raw_target = df[self.TARGET_COL].values
-        if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in raw_target):
-            raise ValueError("Target column contains missing or invalid values.")
-        target_classes = np.unique(raw_target)
-        if len(target_classes) != 2:
-            raise ValueError(f"Target column must contain exactly 2 classes for binary classification, got {len(target_classes)}: {target_classes}")
+        # Strict binary target validation
+        y = self._validate_binary_target(df[self.TARGET_COL], name=f"Target column '{self.TARGET_COL}'")
+        target_classes = sorted(set(np.unique(y)))
+        if target_classes != [0, 1]:
+            raise ValueError(f"Training target column '{self.TARGET_COL}' must contain both binary classes {{0, 1}}, got {target_classes}.")
 
-        try:
-            y = df[self.TARGET_COL].values.astype(int)
-        except (ValueError, TypeError) as ex:
-            raise ValueError(f"Target column '{self.TARGET_COL}' contains values incompatible with binary integer labels {{0, 1}}: {ex}")
-
-        self.classes_ = target_classes.tolist()
+        self.classes_ = [0, 1]
 
         df = df.copy()
         df = self._drop_columns(df)
@@ -253,17 +274,11 @@ class Preprocessor:
 
         has_target = self.TARGET_COL in df.columns
         if has_target:
-            raw_target = df[self.TARGET_COL].values
-            if any(v is None or str(v).strip().lower() in ['nan', 'none', 'null', ''] for v in raw_target):
-                raise ValueError("Test target column contains missing or invalid values.")
-            test_target_classes = np.unique(raw_target)
-            train_classes = getattr(self, 'classes_', None)
+            y = self._validate_binary_target(df[self.TARGET_COL], name=f"Test target column '{self.TARGET_COL}'")
+            test_target_classes = sorted(set(np.unique(y)))
+            train_classes = getattr(self, 'classes_', [0, 1])
             if train_classes is not None and not set(test_target_classes).issubset(set(train_classes)):
-                raise ValueError(f"Test target classes {test_target_classes.tolist()} do not match training target classes {train_classes}.")
-            try:
-                y = df[self.TARGET_COL].values.astype(int)
-            except (ValueError, TypeError) as ex:
-                raise ValueError(f"Test target column contains values incompatible with binary integer labels: {ex}")
+                raise ValueError(f"Test target classes {test_target_classes} do not match training target classes {train_classes}.")
             X_df = df.drop(columns=[self.TARGET_COL])
         else:
             y = None
