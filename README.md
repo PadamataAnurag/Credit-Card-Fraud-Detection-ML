@@ -60,7 +60,7 @@ project-folder/
 │── app.py                    <- Interactive Streamlit web application
 │── requirements.txt          <- Required Python package dependencies
 │── README.md                 <- Step 5 comprehensive report (also in submission PDF)
-│── test_data.csv             <- Bundled stratified test data (1,000 rows, 35 columns)
+│── test_data.csv             <- Bundled stratified test data (20,000 rows, 35 columns)
 │── train_evaluate.py         <- End-to-end Python script training all 5 models
 │── notebook.ipynb            <- Jupyter Notebook with complete EDA and evaluation
 │── models/                   <- All 5 ML algorithms implemented from scratch (NumPy)
@@ -96,8 +96,6 @@ All 5 classification models and all 6 evaluation metrics were built **from scrat
 | **KNN (k=7)** | 0.9792 | 0.6337 | **0.2500** | 0.0049 | 0.0095 | 0.0324 |
 | **Naive Bayes (Gaussian)** | 0.9066 | 0.8193 | 0.1004 | 0.4453 | **0.1638** | **0.1782** |
 | **Support Vector Machine (Linear SGD)** | 0.6425 | 0.8247 | 0.0475 | 0.8613 | 0.0901 | 0.1465 |
-
-*Note: On the bundled 1,000-instance evaluation dataset (`test_data.csv`), the models similarly exhibit Gaussian Naive Bayes with top F1 (0.4495) and MCC (0.3844), with Logistic Regression and SVM showing strong AUC (>0.85).*
 
 ---
 

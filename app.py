@@ -187,10 +187,11 @@ with st.sidebar:
     st.markdown(
         """
         - **Dataset**: Credit Card Fraud 2026
-        - **Total Instances**: 100,000
+        - **Total Instances**: 100,000 transactions
+        - **Training Set**: 80,000 samples (80%)
+        - **Evaluation Test Set**: 20,000 samples (20% Stratified)
         - **Features**: 34 numerical features
         - **Target**: `is_fraud` (0: Legitimate, 1: Fraud)
-        - **Evaluation Test Set**: 1,000 samples (Stratified)
         """
     )
 
@@ -221,7 +222,7 @@ default_test_path = os.path.join(PROJECT_DIR, "test_data.csv")
 uploaded_file = st.file_uploader(
     "Upload Test Data CSV (must include feature columns and 'is_fraud' target):",
     type=["csv"],
-    help="Upload your test CSV. If no file is uploaded, the default pre-bundled stratified test dataset (1,000 instances) will be used.",
+    help="Upload your test CSV. If no file is uploaded, the default pre-bundled stratified test dataset (20,000 instances) will be used.",
 )
 
 df_test = None
