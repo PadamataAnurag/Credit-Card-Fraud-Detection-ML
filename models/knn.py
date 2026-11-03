@@ -61,6 +61,8 @@ class KNNScratch:
             raise ValueError("Training data X and y cannot be empty.")
         if len(X) != len(y):
             raise ValueError(f"Length mismatch: len(X)={len(X)} != len(y)={len(y)}")
+        if np.isnan(X).any() or np.isinf(X).any():
+            raise ValueError("X contains NaN or infinite values.")
         self.classes_   = np.unique(y)
         self.n_classes_ = len(self.classes_)
         if self.n_classes_ < 2:
@@ -120,22 +122,29 @@ class KNNScratch:
 
         return np.array(predictions), np.array(probabilities)
 
+    def _validate_predict_input(self, X):
+        """Validate model state and prediction input array."""
+        if self.X_train is None:
+            raise ValueError("Model must be fitted before prediction.")
+        X = np.asarray(X, dtype=np.float64)
+        if X.ndim != 2:
+            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
+        if hasattr(self, 'n_features_in_') and self.n_features_in_ is not None:
+            if X.shape[1] != self.n_features_in_:
+                raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
+        if np.isnan(X).any() or np.isinf(X).any():
+            raise ValueError("X contains NaN or infinite values.")
+        return X
+
     def predict(self, X):
         """
         Predict class labels for X.
         Returns np.ndarray of shape (n_samples,).
         """
-        if self.X_train is None:
-            raise ValueError("Model must be fitted before prediction.")
-        X = np.asarray(X)
-        if X.ndim != 2:
-            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
+        X = self._validate_predict_input(X)
         if len(X) == 0:
             dtype = self.classes_.dtype if getattr(self, 'classes_', None) is not None else int
             return np.empty((0,), dtype=dtype)
-        if hasattr(self, 'n_features_in_') and self.n_features_in_ is not None:
-            if X.shape[1] != self.n_features_in_:
-                raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
 
         preds = []
         for start in range(0, len(X), self.batch_size):
@@ -151,17 +160,11 @@ class KNNScratch:
         """
         Predict class probabilities for X.
         Returns np.ndarray of shape (n_samples, n_classes).
+        Columns strictly match the order of self.classes_.
         """
-        if self.X_train is None:
-            raise ValueError("Model must be fitted before prediction.")
-        X = np.asarray(X)
-        if X.ndim != 2:
-            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
+        X = self._validate_predict_input(X)
         if len(X) == 0:
             return np.empty((0, self.n_classes_))
-        if hasattr(self, 'n_features_in_') and self.n_features_in_ is not None:
-            if X.shape[1] != self.n_features_in_:
-                raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
 
         probs = []
         for start in range(0, len(X), self.batch_size):

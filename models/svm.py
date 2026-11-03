@@ -180,8 +180,8 @@ class SVMScratch:
 
         return self
 
-    def decision_function(self, X):
-        """Returns raw decision margin scores (w·x + b)."""
+    def _validate_predict_input(self, X):
+        """Validate model state and prediction input array."""
         if self.weights is None:
             raise ValueError("Model must be fitted before prediction.")
         X = np.asarray(X, dtype=float)
@@ -192,33 +192,36 @@ class SVMScratch:
                 raise ValueError(f"Expected {self.n_features_in_} features, got {X.shape[1]}")
         if np.isnan(X).any() or np.isinf(X).any():
             raise ValueError("X contains NaN or infinite values.")
+        return X
+
+    def decision_function(self, X):
+        """Returns raw decision margin scores (w·x + b)."""
+        X = self._validate_predict_input(X)
         return X.dot(self.weights) + self.bias
 
     def predict(self, X):
         """Predict binary class labels corresponding to self.classes_."""
-        if self.weights is None:
-            raise ValueError("Model must be fitted before prediction.")
-        X = np.asarray(X)
-        if X.ndim != 2:
-            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
+        X = self._validate_predict_input(X)
         if len(X) == 0:
             dtype = self.classes_.dtype if getattr(self, 'classes_', None) is not None else int
             return np.empty((0,), dtype=dtype)
-        scores = self.decision_function(X)
+        scores = X.dot(self.weights) + self.bias
         pred_idx = (scores >= 0).astype(int)
         if getattr(self, 'classes_', None) is not None:
             return self.classes_[pred_idx]
         return pred_idx
 
     def predict_proba(self, X):
-        """Sigmoid-transformed margin probability approximation."""
-        if self.weights is None:
-            raise ValueError("Model must be fitted before prediction.")
-        X = np.asarray(X)
-        if X.ndim != 2:
-            raise ValueError(f"X must be a 2D array, got shape {X.shape}")
+        """
+        Sigmoid-transformed margin probability approximation.
+        Output shape: (n_samples, 2).
+        Column 0 represents self.classes_[0] (Negative / Legit).
+        Column 1 represents self.classes_[1] (Positive / Fraud).
+        Note: These values are sigmoid-scaled margin distances, not Bayesian posteriors.
+        """
+        X = self._validate_predict_input(X)
         if len(X) == 0:
             return np.empty((0, 2))
-        scores = self.decision_function(X)
+        scores = X.dot(self.weights) + self.bias
         prob_pos = 1.0 / (1.0 + np.exp(-np.clip(scores, -500.0, 500.0)))
         return np.column_stack([1.0 - prob_pos, prob_pos])
