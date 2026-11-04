@@ -251,13 +251,17 @@ def run_tests():
     for suite, status in suite_status.items():
         print(f"  [{status}] {suite}")
     print("=" * 75)
-    assert all(
-        status in ("PASS", "SKIPPED") for status in suite_status.values()
-    ), f"One or more test suites failed! Statuses: {suite_status}"
-    assert any(
-        status == "PASS" for status in suite_status.values()
-    ), "No test suites passed!"
-    print("ALL TEST SUITES EXECUTED AND CERTIFIED SUCCESSFULLY!")
+    passed_count = sum(1 for st in suite_status.values() if st == "PASS")
+    skipped_count = sum(1 for st in suite_status.values() if st == "SKIPPED")
+    failed_count = sum(1 for st in suite_status.values() if st not in ("PASS", "SKIPPED"))
+
+    assert failed_count == 0, f"{failed_count} test suite(s) failed: {[s for s, st in suite_status.items() if st not in ('PASS', 'SKIPPED')]}"
+    assert passed_count > 0, "No test suites passed!"
+
+    if skipped_count == 0:
+        print(f"ALL {passed_count} TEST SUITES EXECUTED AND CERTIFIED SUCCESSFULLY (0 SKIPPED)!")
+    else:
+        print(f"TEST EXECUTION COMPLETED: {passed_count} PASSED, {skipped_count} SKIPPED (0 FAILURES).")
 
 
 if __name__ == "__main__":
