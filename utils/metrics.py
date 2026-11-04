@@ -256,7 +256,7 @@ class MetricsScratch:
 
         if denom_sq == 0:
             return 0.0
-        return numerator / np.sqrt(denom_sq)
+        return float(numerator / np.sqrt(denom_sq))
 
     # ------------------------------------------------------------------
     # Convenience: compute all 6 metrics at once

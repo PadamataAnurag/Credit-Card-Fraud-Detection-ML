@@ -20,6 +20,13 @@ class StandardScalerScratch:
     """
     Z-score normalisation from scratch.
     x_scaled = (x - mean) / std
+
+    NaN Handling Policy:
+    --------------------
+    - Standalone fit(): computes nanmean/nanstd ignoring NaNs, rejecting columns that are all-NaN.
+    - Standalone transform(): propagates NaNs naturally if present.
+    - Integrated Preprocessor pipeline: all numeric missing values are strictly imputed using
+      the training feature means prior to scaler transform, guaranteeing finite outputs.
     """
 
     def __init__(self):
@@ -140,6 +147,7 @@ class Preprocessor:
     def __init__(self):
         self.encoders_     = {}      # feature -> LabelEncoderScratch
         self.cat_modes_    = {}      # feature -> mode category (for missing value imputation)
+        self.cat_cols_     = []      # feature names designated as categorical during training
         self.scaler_       = StandardScalerScratch()
         self.feature_cols_ = []      # final feature column names
         self.classes_      = None    # valid training target classes
@@ -151,15 +159,27 @@ class Preprocessor:
 
     def _encode_categoricals(self, df, fit=True):
         """
-        Label-encode all object/string columns with explicit missing-value imputation.
+        Label-encode categorical columns with explicit missing-value imputation.
         Uses column mode learned during fit() to impute missing categorical entries.
-        """
-        cat_cols = df.select_dtypes(include=["object", "string", "category"]).columns.tolist()
 
-        # Remove target if it slipped in
-        cat_cols = [c for c in cat_cols if c != self.TARGET_COL]
+        Categorical dtype consistency:
+        - When fit=True: discovers categorical columns by dtype, encodes them, and records
+          their names in self.cat_cols_.
+        - When fit=False: applies the fitted encoder to every column in self.cat_cols_ (or self.encoders_),
+          regardless of incoming DataFrame dtype (preventing numeric-inferred test categories from
+          bypassing their encoder).
+        """
+        if fit:
+            cat_cols = df.select_dtypes(include=["object", "string", "category"]).columns.tolist()
+            cat_cols = [c for c in cat_cols if c != self.TARGET_COL]
+            self.cat_cols_ = cat_cols
+        else:
+            cat_cols = getattr(self, "cat_cols_", list(self.encoders_.keys()))
 
         for col in cat_cols:
+            if col not in df.columns:
+                continue
+
             if fit:
                 non_null = df[col].dropna()
                 if len(non_null) == 0:

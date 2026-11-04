@@ -189,7 +189,16 @@ def run_tests():
     except ValueError:
         print("  [COMPONENT TEST] Preprocessor.transform() rejects infinite feature values.")
 
-    # 5. Component Test: MetricsScratch input validation and single-class AUC guards
+    # 5. Component Test: Categorical dtype consistency under numeric-inferred test column
+    train_toy = pd.DataFrame({"cat_feat": ["10", "20", "30"], "num_feat": [1.0, 2.0, 3.0], "is_fraud": [0, 1, 0]})
+    toy_prep = Preprocessor()
+    toy_prep.fit_transform(train_toy)
+    test_numeric_cat = pd.DataFrame({"cat_feat": [10, 20], "num_feat": [1.0, 2.0], "is_fraud": [0, 1]})
+    X_toy_trans, _ = toy_prep.transform(test_numeric_cat)
+    assert X_toy_trans.shape == (2, 2)
+    print("  [COMPONENT TEST] Preprocessor.transform() enforces categorical dtype consistency.")
+
+    # 6. Component Test: MetricsScratch input validation and single-class AUC guards
     try:
         MetricsScratch._validate_binary_inputs([1, 0], y_scores=[np.nan, 0.5])
         assert False, "Failed to reject NaN in y_scores"
@@ -202,7 +211,9 @@ def run_tests():
         pass
     cm = MetricsScratch.confusion_matrix([0, 1, 0, 1], [0, 0, 0, 1])
     assert cm.shape == (2, 2), f"Expected (2, 2) confusion matrix, got {cm.shape}"
-    print("  [COMPONENT TEST] MetricsScratch input validation, 2x2 layout, and single-class AUC guards verified.")
+    mcc_val = MetricsScratch.mcc_score([0, 1, 0, 1], [0, 1, 0, 1])
+    assert type(mcc_val) is float, f"mcc_score must return native python float, got {type(mcc_val)}"
+    print("  [COMPONENT TEST] MetricsScratch validation, float return types, and AUC guards verified.")
 
     # Part B: Application Logic Checks (Documented Specification Checks)
     # 6. Logic Check: Target column auto-detection multi-alias precedence
