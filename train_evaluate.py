@@ -187,12 +187,16 @@ def main():
     print(f"  Test Class 0 (Legit)         : {(y_test==0).sum():,} samples")
     print(f"  Test Class 1 (Fraud)         : {(y_test==1).sum():,} samples")
 
-    # Save test data for Streamlit app
+    # Save test data for Streamlit app and evaluation
     test_df = pd.DataFrame(X_test, columns=preprocessor.feature_cols_)
     test_df["is_fraud"] = y_test
     test_csv_path = os.path.join(PROJECT_DIR, "test_data.csv")
     test_df.to_csv(test_csv_path, index=False)
     print(f"  Test data saved -> {test_csv_path}")
+
+    # Use the exact serialized test partition for evaluation
+    X_eval = test_df.drop(columns=["is_fraud"]).values
+    y_eval = test_df["is_fraud"].values.astype(int)
 
     # Save preprocessor (strictly fitted only on training data)
     save_model(preprocessor, "preprocessor")
@@ -284,7 +288,7 @@ def main():
         # ── Evaluate ──
         print(f"\n  Evaluating on test set ({len(X_test):,} samples) ...")
         t0 = time.time()
-        metrics    = evaluate_model(model_name, model, X_test, y_test)
+        metrics    = evaluate_model(model_name, model, X_eval, y_eval)
         eval_time  = time.time() - t0
         print(f"  Evaluation time : {eval_time:.2f}s")
 
