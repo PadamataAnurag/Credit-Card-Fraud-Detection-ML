@@ -265,6 +265,15 @@ if uploaded_file is not None:
     try:
         df_test = pd.read_csv(uploaded_file)
         st.success(f"✅ Successfully loaded uploaded CSV: `{uploaded_file.name}` ({df_test.shape[0]:,} rows, {df_test.shape[1]} columns)")
+        if df_test.shape[0] >= 80000 or "credit_card_fraud_detection_2026" in uploaded_file.name.lower():
+            st.warning(
+                "⚠️ **Severe Data Leakage Warning**: You uploaded the full raw 100,000-row dataset (`credit_card_fraud_detection_2026.csv`).\n\n"
+                "Because all 5 models were trained on 80,000 samples from this exact dataset, evaluating on it causes severe **data leakage** and memorization. "
+                "This artificially inflates the Decision Tree's score (F1 ~0.4069, MCC ~0.4404) and corrupts the scientific benchmark.\n\n"
+                "👉 **To restore the true test benchmark (where Gaussian Naive Bayes is the legitimate winner):**\n"
+                "- **Click the '✖' icon** on the file uploader above to automatically revert to the isolated, leak-free **`test_data.csv`** (20,000 rows), OR\n"
+                "- Explicitly upload the dedicated **`test_data.csv`** file."
+            )
     except Exception as e:
         st.error(f"❌ Error reading uploaded CSV: {e}")
 elif os.path.exists(default_test_path):
