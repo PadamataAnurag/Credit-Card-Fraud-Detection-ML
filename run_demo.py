@@ -76,10 +76,10 @@ def main():
 
         t0 = time.time()
         preds = m.predict(X_test)
-        if hasattr(m, 'classes_') and m.classes_ is not None and 1 in m.classes_:
-            pos_idx = int(np.where(m.classes_ == 1)[0][0])
-        else:
-            pos_idx = 1
+        classes = getattr(m, 'classes_', None)
+        if classes is None or 1 not in classes:
+            raise ValueError(f"Model '{name}' must expose fitted classes_ attribute containing positive class 1.")
+        pos_idx = int(np.where(classes == 1)[0][0])
         probs = m.predict_proba(X_test)[:, pos_idx]
         elapsed = (time.time() - t0) * 1000
 

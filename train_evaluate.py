@@ -81,12 +81,22 @@ def train_test_split_raw_df(df, target_col="is_fraud", test_size=0.20, seed=42):
     Stratified train/test split on raw DataFrame — pure NumPy indexing, no sklearn.
     Guarantees zero data leakage prior to fitting the preprocessor.
     """
+    if not isinstance(test_size, (int, float)) or not (0.0 < test_size < 1.0):
+        raise ValueError(f"test_size must be a float strictly between 0.0 and 1.0; got {test_size}")
+    if target_col not in df.columns:
+        raise ValueError(f"Target column '{target_col}' not found in DataFrame.")
+
+    classes = np.unique(df[target_col].dropna().values)
+    if len(classes) != 2:
+        raise ValueError(f"Target variable '{target_col}' must have exactly 2 classes; found {len(classes)} ({classes}).")
+
     rng = np.random.default_rng(seed)
-    classes = df[target_col].unique()
     train_idx, test_idx = [], []
 
     for c in classes:
         c_idx = np.where(df[target_col].values == c)[0].copy()
+        if len(c_idx) < 2:
+            raise ValueError(f"Target class {c} has fewer than 2 samples ({len(c_idx)}); cannot split.")
         rng.shuffle(c_idx)
         n_test = max(1, int(len(c_idx) * test_size))
         test_idx.extend(c_idx[:n_test].tolist())
@@ -103,10 +113,10 @@ def train_test_split_raw_df(df, target_col="is_fraud", test_size=0.20, seed=42):
 def evaluate_model(name, model, X_test, y_test):
     """Run prediction + compute all 6 metrics."""
     y_pred = model.predict(X_test)
-    if hasattr(model, 'classes_') and model.classes_ is not None and 1 in model.classes_:
-        pos_idx = int(np.where(model.classes_ == 1)[0][0])
-    else:
-        pos_idx = 1
+    classes = getattr(model, "classes_", None)
+    if classes is None or 1 not in classes:
+        raise ValueError(f"Model '{name}' must expose fitted classes_ attribute containing positive class 1.")
+    pos_idx = int(np.where(classes == 1)[0][0])
     y_scores = model.predict_proba(X_test)[:, pos_idx]   # Dynamic positive-class probability
     metrics = MetricsScratch.compute_all(y_test, y_pred, y_scores, positive_class=1)
 
@@ -235,18 +245,31 @@ def main():
 
         # Some models (KNN) use a training subset for speed
         if cfg.get("use_subset"):
-            # Stratified subset sampling preserving exact class distribution
+            # Stratified subset sampling preserving exact class distribution and exact target size
             rng_knn = np.random.default_rng(RANDOM_SEED)
+            target_total = min(KNN_SUBSET, len(X_train))
+            unique_classes = np.unique(y_train)
+
+            # Proportional allocation rounded down
+            class_allocations = {
+                c: int(np.floor(len(np.where(y_train == c)[0]) / len(y_train) * target_total))
+                for c in unique_classes
+            }
+            # Allocate remainder to reach exact target_total
+            remainder = target_total - sum(class_allocations.values())
+            largest_c = max(class_allocations, key=lambda c: len(np.where(y_train == c)[0]))
+            class_allocations[largest_c] += remainder
+
             subset_idx = []
-            for c in np.unique(y_train):
+            for c, n_c in class_allocations.items():
                 c_indices = np.where(y_train == c)[0]
-                n_c = int(round(len(c_indices) / len(y_train) * min(KNN_SUBSET, len(X_train))))
+                n_c = max(1, min(n_c, len(c_indices)))
                 subset_idx.extend(rng_knn.choice(c_indices, n_c, replace=False).tolist())
             subset_idx = np.array(subset_idx)
             rng_knn.shuffle(subset_idx)
             X_tr = X_train[subset_idx]
             y_tr = y_train[subset_idx]
-            print(f"  [KNN] Using {len(X_tr):,} stratified training samples "
+            print(f"  [KNN] Using exactly {len(X_tr):,} stratified training samples "
                   f"(Class 0: {(y_tr==0).sum():,}, Class 1: {(y_tr==1).sum():,})")
         else:
             X_tr, y_tr = X_train, y_train
