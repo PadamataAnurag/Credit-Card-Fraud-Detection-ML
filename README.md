@@ -88,7 +88,7 @@ project-folder/
 
 ## d. Models Used: [ 5 Marks — 1 Mark per Model ]
 
-All 5 classification models and all 6 evaluation metrics were built **from scratch using pure NumPy** without relying on predefined scikit-learn estimators. The parametric models (Logistic Regression, Decision Tree, Naive Bayes, Linear SVM) were trained on the complete 80,000-sample training partition. K-Nearest Neighbor (KNN) utilizes a stratified 10,000-sample training subset to ensure sub-second inference latency and comply with Streamlit Community Cloud resource bounds (1GB RAM). All 5 models are evaluated on the identical 20,000-sample stratified test partition.
+All 5 classification models and all 6 evaluation metrics were built **from scratch using pure NumPy** without relying on predefined scikit-learn estimators. The parametric models (Logistic Regression, Decision Tree, Naive Bayes, Linear SVM) were trained on the complete 80,000-sample training partition. K-Nearest Neighbor (KNN) utilizes a stratified 10,000-sample training subset to reduce training and memory requirements and improve inference efficiency under Streamlit Community Cloud resource constraints. All 5 models are evaluated on the identical 20,000-sample stratified test partition.
 
 ### 1. Model Comparison Table
 
@@ -132,5 +132,5 @@ streamlit run app.py
 ### Deploying to Streamlit Community Cloud:
 1. Fork or push the `Project/` folder contents to your GitHub repository.
 2. Sign in to [share.streamlit.io](https://share.streamlit.io/) with your GitHub account.
-3. Select your repository `Credit-Card-Fraud-Detection-ML`, branch `main`, and main file path `app.py`.
+3. Select your repository `Credit-Card-Fraud-Detection-ML`, branch `master` (or `main`), and main file path `app.py`.
 4. Click **Deploy** — the app will build and run live.
