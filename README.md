@@ -60,11 +60,12 @@ The practical goal is to deploy an automated classification pipeline capable of 
 ```
 project-folder/
 ├── app.py                    <- Interactive Streamlit web application
+├── bits_logo.png             <- Institutional BITS Pilani logo for dashboard
 ├── requirements.txt          <- Required Python package dependencies
 ├── README.md                 <- Step 5 comprehensive report (also in submission PDF)
 ├── test_data.csv             <- Bundled stratified test data (20,000 rows, 35 columns)
 ├── train_evaluate.py         <- End-to-end Python script training all 5 models
-├── notebook.ipynb            <- Jupyter Notebook with complete EDA and evaluation
+├── notebook.ipynb            <- Training architecture, test-data verification, model evaluation and comparative analysis
 ├── models/                   <- All 5 ML algorithms implemented from scratch (NumPy)
 │   ├── logistic_regression.py
 │   ├── decision_tree.py

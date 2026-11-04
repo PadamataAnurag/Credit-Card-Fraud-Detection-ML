@@ -101,10 +101,12 @@ def run_tests():
     for name, model in models_to_test:
         t0 = time.time()
         y_pred = model.predict(X_test)
-        if hasattr(model, 'classes_') and model.classes_ is not None and 1 in model.classes_:
-            pos_idx = int(np.where(model.classes_ == 1)[0][0])
-        else:
-            pos_idx = 1
+        classes = getattr(model, "classes_", None)
+        if classes is None or 1 not in classes:
+            raise ValueError(
+                f"Model '{name}' must expose classes_ containing positive class 1."
+            )
+        pos_idx = int(np.where(classes == 1)[0][0])
         y_proba = model.predict_proba(X_test)[:, pos_idx]
         elapsed = (time.time() - t0) * 1000
 
